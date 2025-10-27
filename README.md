@@ -1,2 +1,2 @@
 # expertlib
-go专家库
+go 的专家库
