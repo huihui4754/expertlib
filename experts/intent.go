@@ -3,64 +3,70 @@ package experts
 import (
 	"encoding/json"
 	"os"
-	"path/filepath"
-	"regexp"
-	"strings"
 	"sync"
 	"time"
+
+	"github.com/huihui4754/expertlib/types"
 )
 
-var (
-	dataPath         = os.Getenv("DATA_PATH")
-	allIntentMatcher map[string]func() IntentMatchInter
-	IntentCache      = make(map[string]string)                              // IntentCache存储用户输入到专家名称的映射。
-	cacheMutex       = &sync.RWMutex{}                                      // cacheMutex保护IntentCache免受并发访问。
-	cacheFilePath    = filepath.Join(dataPath, "user", "Intent_cache.json") // cacheFilePath是指向该缓存文件的路径。
-	lastSavedCache   string
-	urlRegex         = regexp.MustCompile(`(https?://[^\s]+\.release.git)`)
-	tagRegex         = regexp.MustCompile(`([a-zA-Z0-9]+-v\d+\.\d+|v\d+\.\d+)`)
-	vaildMinScore    = 90
-)
-
-type Attachment struct {
-	Type   string `json:"type"`
-	Name   string `json:"name"`
-	FileID string `json:"file_id"`
-	Option any    `json:"option"`
-}
+type PossibleIntentions = types.PossibleIntentions
+type Attachment = types.Attachment
 
 // 用户的话匹配意图类接口
 type IntentMatchInter interface {
-	GetIntentName() string             //获取意图名称
-	GetIntentDesc() string             //获取意图描述
-	Matching(string, []Attachment) int //用户的话匹配专家系统，返回的第一个参数是匹配的概率 float64
+	GetIntentName() string                 //获取意图名称
+	GetIntentDesc() string                 //获取意图描述
+	Matching(string, []Attachment) float64 //用户的话匹配意图系统，返回的第一个参数是匹配的概率 float64
 }
 
-func Register(IntentMatcher func() IntentMatchInter, IntentName string) {
-	if allIntentMatcher[IntentName] != nil {
+type IntentManager struct {
+	cacheFilePath     string
+	allIntentMatcher  map[string]func() IntentMatchInter
+	IntentCache       map[string]string // IntentCache存储用户输入到意图名称的映射。
+	cacheMutex        *sync.RWMutex     // cacheMutex保护IntentCache免受并发访问。
+	lastSavedCache    string
+	vaildMinScore     float64
+	messageformatting func(string) string //消息格式化函数，将消息送入意图识别时可以用此函数去处理文字字符串以便更好识别
+}
+
+func NewIntentManager() *IntentManager {
+	return &IntentManager{
+		allIntentMatcher: make(map[string]func() IntentMatchInter),
+		IntentCache:      make(map[string]string),
+		cacheMutex:       &sync.RWMutex{},
+		vaildMinScore:    0.9,
+	}
+}
+
+func (i *IntentManager) SetCacheFilePath(path string) {
+	i.cacheFilePath = path
+}
+
+func (i *IntentManager) Register(IntentMatcher func() IntentMatchInter, IntentName string) {
+	if i.allIntentMatcher[IntentName] != nil {
 		return
 	}
-	allIntentMatcher[IntentName] = IntentMatcher
+	i.allIntentMatcher[IntentName] = IntentMatcher
 }
 
-func UnRegister(IntentName string) {
-	delete(allIntentMatcher, IntentName)
+func (i *IntentManager) UnRegister(IntentName string) {
+	delete(i.allIntentMatcher, IntentName)
 }
 
-func GetALLNewIntentMatcher() []IntentMatchInter {
-	plugins := make([]IntentMatchInter, 0, len(allIntentMatcher))
-	for _, ctor := range allIntentMatcher {
+func (i *IntentManager) GetALLNewIntentMatcher() []IntentMatchInter {
+	plugins := make([]IntentMatchInter, 0, len(i.allIntentMatcher))
+	for _, ctor := range i.allIntentMatcher {
 		plugins = append(plugins, ctor())
 	}
 	return plugins
 }
 
-// LoadIntentCache 从文件系统加载专家缓存。
-func LoadIntentCache() {
-	cacheMutex.Lock()
-	defer cacheMutex.Unlock()
+// LoadIntentCache 从文件系统加载意图缓存到内存。
+func (i *IntentManager) LoadIntentCache() {
+	i.cacheMutex.Lock()
+	defer i.cacheMutex.Unlock()
 
-	data, err := os.ReadFile(cacheFilePath)
+	data, err := os.ReadFile(i.cacheFilePath)
 	if err != nil {
 		if os.IsNotExist(err) {
 			logger.Info("Intent cache file not found, starting with an empty cache.")
@@ -70,70 +76,65 @@ func LoadIntentCache() {
 		return
 	}
 
-	if err := json.Unmarshal(data, &IntentCache); err != nil {
+	if err := json.Unmarshal(data, &i.IntentCache); err != nil {
 		logger.Errorf("Failed to unmarshal Intent cache data: %v", err)
 		return
 	}
 
 	// 存储数据的初始状态以避免不必要的保存
-	initialData, err := json.MarshalIndent(IntentCache, "", "  ")
+	initialData, err := json.MarshalIndent(i.IntentCache, "", "  ")
 	if err == nil {
-		lastSavedCache = string(initialData)
+		i.lastSavedCache = string(initialData)
 	}
 
-	logger.Infof("Loaded %d Intent cache records.", len(IntentCache))
+	logger.Infof("Loaded %d Intent cache records.", len(i.IntentCache))
 }
 
-// SaveIntentCache 将当前专家缓存保存到文件系统。
-func SaveIntentCache() {
-	cacheMutex.RLock()
-	defer cacheMutex.RUnlock()
+// SaveIntentCache 将当前意图缓存保存到文件系统。
+func (i *IntentManager) SaveIntentCache() {
+	i.cacheMutex.RLock()
+	defer i.cacheMutex.RUnlock()
 
 	// Only write to file if the content has actually changed.
-	currentData, err := json.MarshalIndent(IntentCache, "", "  ")
+	currentData, err := json.MarshalIndent(i.IntentCache, "", "  ")
 	if err != nil {
 		logger.Errorf("Failed to marshal Intent cache data for saving: %v", err)
 		return
 	}
 
-	if string(currentData) == lastSavedCache {
+	if string(currentData) == i.lastSavedCache {
 		return // No changes to save
 	}
 
-	if err := os.WriteFile(cacheFilePath, currentData, 0644); err != nil {
+	if err := os.WriteFile(i.cacheFilePath, currentData, 0644); err != nil {
 		logger.Errorf("Failed to write Intent cache file: %v", err)
 	} else {
 		logger.Info("Saved Intent cache successfully.")
-		lastSavedCache = string(currentData)
+		i.lastSavedCache = string(currentData)
 	}
 }
 
-// PeriodicCacheSave 定期保存专家缓存。
-func PeriodicCacheSave(interval time.Duration) {
+// PeriodicCacheSave 定期保存意图缓存。
+func (i *IntentManager) PeriodicCacheSave(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		logger.Debug("Periodic Intent cache save check")
-		SaveIntentCache()
+		i.SaveIntentCache()
 	}
 }
 
-type PossibleIntentions struct {
-	IntentName        string  `json:"intent_name"`
-	IntentDescription string  `json:"intent_description"`
-	Probability       float64 `json:"probability"`
-}
-
 // FindBestIntent 首先检查该高速缓存，如果未找到，则执行匹配并缓存结果。
-func FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (string, []PossibleIntentions) {
-	// 1. Check cache first
-	content := urlRegex.ReplaceAllString(relacontent, "")
-	content = strings.TrimSpace(tagRegex.ReplaceAllString(content, ""))
+func (i *IntentManager) FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (string, []PossibleIntentions) {
+	content := relacontent
+	if i.messageformatting != nil {
+		content = i.messageformatting(content)
+	}
 
-	cacheMutex.RLock()
-	cachedIntent, found := IntentCache[content]
-	cacheMutex.RUnlock()
+	i.cacheMutex.RLock()
+	cachedIntent, found := i.IntentCache[content]
+	i.cacheMutex.RUnlock()
 
 	if found {
 		logger.Debugf("Cache hit for content. Intent: %s", cachedIntent)
@@ -142,19 +143,13 @@ func FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (
 
 	// 2.如果不在缓存中，则执行匹配
 	logger.Debug("Cache miss. Finding best Intent for content.")
-	allIntents := GetALLNewIntentMatcher()
+	allIntents := i.GetALLNewIntentMatcher()
 	if len(allIntents) == 0 {
 		logger.Error("No Intents available for matching.")
 		return "", nil
 	}
 
-	type result struct {
-		name       string
-		score      int
-		descprtion string
-	}
-
-	results := make(chan result, len(allIntents))
+	results := make(chan PossibleIntentions, len(allIntents))
 	var wg sync.WaitGroup
 
 	for _, exp := range allIntents {
@@ -162,7 +157,7 @@ func FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (
 		go func(e IntentMatchInter) {
 			defer wg.Done()
 			score := e.Matching(content, attachments)
-			results <- result{name: e.GetIntentName(), score: score, descprtion: e.GetIntentDesc()}
+			results <- PossibleIntentions{IntentName: e.GetIntentName(), Probability: score, IntentDescription: e.GetIntentDesc()}
 		}(exp)
 	}
 
@@ -172,40 +167,36 @@ func FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (
 	}()
 
 	bestIntent := ""
-	maxScore := -1
+	var maxScore = 0.0
 
 	var possibleIntentions []PossibleIntentions
 
 	for res := range results {
-		if res.score > maxScore {
-			maxScore = res.score
-			bestIntent = res.name
+		if res.Probability > maxScore {
+			maxScore = res.Probability
+			bestIntent = res.IntentName
 		}
-		possibleIntentions = append(possibleIntentions, PossibleIntentions{
-			IntentName:        res.name,
-			IntentDescription: res.descprtion,
-			Probability:       float64(res.score) / 100.0,
-		})
+		possibleIntentions = append(possibleIntentions, res) // 这里可以只放三个最高概率的意图
 	}
 
-	logger.Debugf("所有专家概率： %v", possibleIntentions)
+	logger.Debugf("较高意图概率： %v", possibleIntentions)
 
-	// 3.仅在找到合适的专家时进行缓存
-	if maxScore >= vaildMinScore {
+	// 3.仅在找到合适的意图时进行缓存
+	if maxScore >= i.vaildMinScore {
 		logger.Debugf("Found best Intent: %s with score %d. Caching result.", bestIntent, maxScore)
 		if ifsave {
-			CacheContentIntent(content, bestIntent)
+			i.CacheContentIntent(content, bestIntent)
 		}
 		return bestIntent, possibleIntentions
 	}
 
-	logger.Debugf("No suitable Intent found with a score >= %d .", vaildMinScore)
+	logger.Debugf("No suitable Intent found with a score >= %d .", i.vaildMinScore)
 	return "", possibleIntentions
 }
 
-// CacheContentIntent 将内容与意图关联并存储在缓存中。
-func CacheContentIntent(content string, intent string) {
-	cacheMutex.Lock()
-	IntentCache[content] = intent
-	cacheMutex.Unlock()
+// CacheContentIntent 将内容与意图关联并存储在内存中。
+func (i *IntentManager) CacheContentIntent(content string, intent string) {
+	i.cacheMutex.Lock()
+	i.IntentCache[content] = intent
+	i.cacheMutex.Unlock()
 }
