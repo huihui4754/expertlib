@@ -19,7 +19,8 @@ type IntentMatchInter interface {
 	Matching(string, []Attachment) float64 //用户的话匹配意图系统，返回的第一个参数是匹配的概率 float64
 }
 
-type IntentManager struct {
+// 意图匹配管理器，用于注册、缓存和查找意图匹配器以及意图匹配缓存到文件
+type IntentMatchManager struct {
 	cacheFilePath     string
 	allIntentMatcher  map[string]func() IntentMatchInter
 	IntentCache       map[string]string // IntentCache存储用户输入到意图名称的映射。
@@ -29,8 +30,8 @@ type IntentManager struct {
 	messageformatting func(string) string //消息格式化函数，将消息送入意图识别时可以用此函数去处理文字字符串以便更好识别
 }
 
-func NewIntentManager() *IntentManager {
-	return &IntentManager{
+func NewIntentManager() *IntentMatchManager {
+	return &IntentMatchManager{
 		allIntentMatcher: make(map[string]func() IntentMatchInter),
 		IntentCache:      make(map[string]string),
 		cacheMutex:       &sync.RWMutex{},
@@ -38,22 +39,22 @@ func NewIntentManager() *IntentManager {
 	}
 }
 
-func (i *IntentManager) SetCacheFilePath(path string) {
+func (i *IntentMatchManager) SetCacheFilePath(path string) {
 	i.cacheFilePath = path
 }
 
-func (i *IntentManager) Register(IntentMatcher func() IntentMatchInter, IntentName string) {
+func (i *IntentMatchManager) Register(IntentMatcher func() IntentMatchInter, IntentName string) {
 	if i.allIntentMatcher[IntentName] != nil {
 		return
 	}
 	i.allIntentMatcher[IntentName] = IntentMatcher
 }
 
-func (i *IntentManager) UnRegister(IntentName string) {
+func (i *IntentMatchManager) UnRegister(IntentName string) {
 	delete(i.allIntentMatcher, IntentName)
 }
 
-func (i *IntentManager) GetALLNewIntentMatcher() []IntentMatchInter {
+func (i *IntentMatchManager) GetALLNewIntentMatcher() []IntentMatchInter {
 	plugins := make([]IntentMatchInter, 0, len(i.allIntentMatcher))
 	for _, ctor := range i.allIntentMatcher {
 		plugins = append(plugins, ctor())
@@ -62,7 +63,7 @@ func (i *IntentManager) GetALLNewIntentMatcher() []IntentMatchInter {
 }
 
 // LoadIntentCache 从文件系统加载意图缓存到内存。
-func (i *IntentManager) LoadIntentCache() {
+func (i *IntentMatchManager) LoadIntentCache() {
 	i.cacheMutex.Lock()
 	defer i.cacheMutex.Unlock()
 
@@ -91,7 +92,7 @@ func (i *IntentManager) LoadIntentCache() {
 }
 
 // SaveIntentCache 将当前意图缓存保存到文件系统。
-func (i *IntentManager) SaveIntentCache() {
+func (i *IntentMatchManager) SaveIntentCache() {
 	i.cacheMutex.RLock()
 	defer i.cacheMutex.RUnlock()
 
@@ -115,7 +116,7 @@ func (i *IntentManager) SaveIntentCache() {
 }
 
 // PeriodicCacheSave 定期保存意图缓存。
-func (i *IntentManager) PeriodicCacheSave(interval time.Duration) {
+func (i *IntentMatchManager) PeriodicCacheSave(interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 
@@ -125,8 +126,8 @@ func (i *IntentManager) PeriodicCacheSave(interval time.Duration) {
 	}
 }
 
-// FindBestIntent 首先检查该高速缓存，如果未找到，则执行匹配并缓存结果。
-func (i *IntentManager) FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (string, []PossibleIntentions) {
+// FindBestIntent 首先检查该高速缓存，如果未找到，则执行匹配并缓存结果。 ifsave 参数控制是否缓存新匹配的意图。
+func (i *IntentMatchManager) FindBestIntent(relacontent string, attachments []Attachment, ifsave bool) (string, []PossibleIntentions) {
 	content := relacontent
 	if i.messageformatting != nil {
 		content = i.messageformatting(content)
@@ -195,7 +196,7 @@ func (i *IntentManager) FindBestIntent(relacontent string, attachments []Attachm
 }
 
 // CacheContentIntent 将内容与意图关联并存储在内存中。
-func (i *IntentManager) CacheContentIntent(content string, intent string) {
+func (i *IntentMatchManager) CacheContentIntent(content string, intent string) {
 	i.cacheMutex.Lock()
 	i.IntentCache[content] = intent
 	i.cacheMutex.Unlock()

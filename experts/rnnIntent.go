@@ -7,29 +7,36 @@ import (
 	"path/filepath"
 	"sync"
 
-	"github.com/huihui4754/expertlib/types"
 	ort "github.com/yalue/onnxruntime_go"
 	"github.com/yanyiwu/gojieba"
 )
 
-type RNNIntentInit struct {
-	libPath         string    // onnxruntime 动态库路径
-	libonce         sync.Once // 只加载一次onnxruntime 动态库
-	rnnModelPath    string    // rnn模型相关文件目录
-	rnnModelIntents map[string]*RNNIntent
+type RNNIntentManager struct {
+	libPath         string                // onnxruntime 动态库路径
+	libonce         *sync.Once            // 只加载一次onnxruntime 动态库
+	rnnModelPath    string                // rnn模型相关文件目录
+	rnnModelIntents map[string]*RNNIntent // 活动的rnn 意图识别映射
 	rnnIntentsMutex *sync.RWMutex
 }
 
-func (r *RNNIntentInit) SetLibPath(path string) {
+func NewRNNIntentManager() *RNNIntentManager {
+	return &RNNIntentManager{
+		rnnModelIntents: make(map[string]*RNNIntent),
+		rnnIntentsMutex: &sync.RWMutex{},
+		libonce:         &sync.Once{},
+	}
+}
+
+func (r *RNNIntentManager) SetLibPath(path string) {
 	r.libPath = path
 }
 
-func (r *RNNIntentInit) SetRNNModelPath(path string) {
+func (r *RNNIntentManager) SetRNNModelPath(path string) {
 	r.rnnModelPath = path
 }
 
-// LoadPersistedRemoteIntents 扫描rnnModelPath目录，加载并注册意图
-func (r *RNNIntentInit) LoadRNNModelIntents() {
+// LoadPersistedRemoteIntents 扫描rnnModelPath目录，加载意图识别
+func (r *RNNIntentManager) LoadRNNModelIntents() {
 	logger.Info("Scanning for persisted remote intents...")
 	files, err := os.ReadDir(r.rnnModelPath)
 	if err != nil {
@@ -68,7 +75,7 @@ func (r *RNNIntentInit) LoadRNNModelIntents() {
 			}
 
 			// Use the existing registration logic to load the intent
-			if err := r.LoadRNNIntent(intentName, description, weight); err != nil {
+			if err := r.loadRNNIntent(intentName, description, weight); err != nil {
 				logger.Errorf("Failed to reload persisted intent '%s': %v", intentName, err)
 			} else {
 				count++
@@ -80,13 +87,9 @@ func (r *RNNIntentInit) LoadRNNModelIntents() {
 	}
 }
 
-type ExpertToProgramMessage = types.ExpertToProgramMessage
-
-// once 保证初始化代码只执行一次
-
 // InitializeONNX 负责设置共享库路径。
 // 无论此函数被调用多少次，实际的设置操作都只会执行一次。
-func (r *RNNIntentInit) InitializeONNX() {
+func (r *RNNIntentManager) InitializeONNX() {
 	r.libonce.Do(func() {
 		// 在这里放置你的 .so 文件路径
 		// 你可以从环境变量、配置文件或固定路径读取
@@ -99,7 +102,7 @@ func (r *RNNIntentInit) InitializeONNX() {
 }
 
 // LoadRNNIntent 创建、加载并注册一个新的rnn 意图识别
-func (r *RNNIntentInit) LoadRNNIntent(name, description string, weight float32) error {
+func (r *RNNIntentManager) loadRNNIntent(name, description string, weight float32) error {
 	r.rnnIntentsMutex.Lock()
 	defer r.rnnIntentsMutex.Unlock()
 
@@ -126,7 +129,7 @@ func (r *RNNIntentInit) LoadRNNIntent(name, description string, weight float32) 
 }
 
 // UnloadRNNIntent 清理rnn 意图识别实例
-func (r *RNNIntentInit) UnloadRNNIntent(intentName string) error {
+func (r *RNNIntentManager) UnloadRNNIntent(intentName string) error {
 	r.rnnIntentsMutex.Lock()
 	defer r.rnnIntentsMutex.Unlock()
 
@@ -147,7 +150,7 @@ func (r *RNNIntentInit) UnloadRNNIntent(intentName string) error {
 }
 
 // UnloadRNNIntent 清理所有的 rnn 意图识别实例
-func (r *RNNIntentInit) UnloadALLRNNIntent(intentName string) error {
+func (r *RNNIntentManager) UnloadALLRNNIntent(intentName string) error {
 	r.rnnIntentsMutex.Lock()
 	defer r.rnnIntentsMutex.Unlock()
 
@@ -162,7 +165,7 @@ func (r *RNNIntentInit) UnloadALLRNNIntent(intentName string) error {
 	return nil
 }
 
-func (r *RNNIntentInit) GetAllRNNIntents() map[string]*RNNIntent {
+func (r *RNNIntentManager) GetAllRNNIntents() map[string]*RNNIntent {
 	return r.rnnModelIntents
 }
 
