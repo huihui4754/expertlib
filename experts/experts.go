@@ -20,11 +20,23 @@ type Expert struct {
 	userMessageHandler func(any, string)
 	toolMessageHandler func(any, string)
 	chatMessageHandler func(any, string)
+	intentMatch        *IntentMatchManager //意图识别管理器
 }
 
 // NewExpert会建立Expert的新执行严修。
 func NewExpert() *Expert {
-	return &Expert{}
+	intentsManager := NewIntentManager()
+	return &Expert{
+		intentMatch: intentsManager,
+	}
+}
+
+func (t *Expert) Register(intentMatcher func() IntentMatchInter, intentName string) {
+	t.intentMatch.Register(intentMatcher, intentName)
+}
+
+func (t *Expert) UnRegister(intentName string) {
+	t.intentMatch.UnRegister(intentName)
 }
 
 // SetDataFilePath设置专家的数据文件路径。
