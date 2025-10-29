@@ -35,7 +35,7 @@ type Expert struct {
 	chatMessageHandler  func(any, string)
 	intentMatch         *IntentMatchManager //意图识别管理器
 	rnnIntent           *RNNIntentManager   //RNN意图管理器
-	messageInChan       chan TotalMessage
+	UserMessageInChan   chan *TotalMessage  //用户消息输入通道
 	dialogs             map[string]*DialogInfo
 	dialogsMutex        *sync.RWMutex
 	lastSavedDialogInfo string // 上次保存的dialog 信息的字符串表示
@@ -57,13 +57,13 @@ func NewExpert() *Expert {
 		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "dialog")
 	}
 	return &Expert{
-		intentMatch:   intentsManager,
-		rnnIntentPath: defalutRnnModelPath,
-		dataFilePath:  defalutDataPath,
-		onnxLibPath:   "",
-		messageInChan: make(chan TotalMessage, 1000),
-		dialogs:       make(map[string]*DialogInfo),
-		dialogsMutex:  &sync.RWMutex{},
+		intentMatch:       intentsManager,
+		rnnIntentPath:     defalutRnnModelPath,
+		dataFilePath:      defalutDataPath,
+		onnxLibPath:       "",
+		UserMessageInChan: make(chan *TotalMessage, 1000),
+		dialogs:           make(map[string]*DialogInfo),
+		dialogsMutex:      &sync.RWMutex{},
 	}
 }
 
@@ -206,20 +206,49 @@ func (t *Expert) periodicSave() {
 // HandleUserRequestMessage 用户传给专家的消息由此进入
 func (t *Expert) HandleUserRequestMessage(message any) {
 	logger.Debug("HandleUserRequestMessage received:", message)
-	if t.userMessageHandler != nil {
-		// Placeholder for actual logic
-		t.userMessageHandler("response from expert for user", "")
+	var messagePointer *TotalMessage
+	switch v := message.(type) {
+	case TotalMessage:
+		// 复制值类型，取新地址
+		msg := v
+		messagePointer = &msg
+	case *TotalMessage:
+		if v == nil {
+			logger.Error("*TotalMessage 为 nil")
+			break
+		}
+		// 复制指针指向的值，取新地址（避免外部修改影响）
+		msg := *v // 解引用并复制
+		messagePointer = &msg
+	case string:
+		var totalMsg TotalMessage
+		err := json.Unmarshal([]byte(v), &totalMsg)
+		if err == nil {
+			messagePointer = &totalMsg
+		}
+	case []byte:
+		var totalMsg TotalMessage
+		err := json.Unmarshal(v, &totalMsg)
+		if err == nil {
+			messagePointer = &totalMsg
+		}
+
+	default:
+		logger.Error("不支持的消息结构")
+	}
+	if t.UserMessageInChan != nil && messagePointer != nil {
+		t.UserMessageInChan <- messagePointer
 	}
 }
 
-// HandleUserRequestMessageString 用户传给专家的消息由此进入 ，一条消息只用传输一次，和上面二选一
-func (t *Expert) HandleUserRequestMessageString(message string) {
-	logger.Debug("HandleUserRequestMessageString received:", message)
-	if t.userMessageHandler != nil {
-		// Placeholder for actual logic
-		t.userMessageHandler("response from expert for user", "")
-	}
-}
+// func getTotalMessageFromBytes(message []byte) (*TotalMessage, error) {
+// 	var totalMsg TotalMessage
+// 	err := json.Unmarshal(message, &totalMsg)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return &totalMsg, err
+// }
 
 // SetUserMessage 设置返回给用户的消息处理函数
 func (t *Expert) SetUserMessageHandler(handler func(any, string)) {
@@ -300,7 +329,7 @@ func (t *Expert) Run() {
 	t.loadDialogInfo()
 	go t.periodicSave()
 
-	for chunk := range t.messageInChan {
+	for chunk := range t.UserMessageInChan {
 		logger.Debug("Processing message from channel:", chunk)
 	}
 	// 启动逻辑的占位符
