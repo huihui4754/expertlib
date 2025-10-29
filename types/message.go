@@ -6,3 +6,14 @@ type Attachment struct {
 	FileID string `json:"file_id"`
 	Option any    `json:"option"`
 }
+
+type ExpertToProgramMessage struct {
+	EventType int    `json:"event_type"`
+	DialogID  string `json:"dialog_id"`
+	MessageID string `json:"message_id"`
+	Intention string `json:"intention"` // 专家告诉程序库匹配的意图
+	Messages  struct {
+		Content     string       `json:"content"`
+		Attachments []Attachment `json:"attachments"`
+	} `json:"messages"`
+}
