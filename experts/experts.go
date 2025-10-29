@@ -1,6 +1,8 @@
 package experts
 
 import (
+	"time"
+
 	"github.com/huihui4754/expertlib/loglevel"
 )
 
@@ -16,10 +18,12 @@ func SetLogger(level int) {
 type Expert struct {
 	dataFilePath       string
 	rnnIntentPath      string
+	onnxLibPath        string
 	commandFirst       bool
 	userMessageHandler func(any, string)
 	toolMessageHandler func(any, string)
 	chatMessageHandler func(any, string)
+	rnnIntent          *RNNIntentManager   //RNN意图识别管理器
 	intentMatch        *IntentMatchManager //意图识别管理器
 }
 
@@ -27,7 +31,9 @@ type Expert struct {
 func NewExpert() *Expert {
 	intentsManager := NewIntentManager()
 	return &Expert{
-		intentMatch: intentsManager,
+		intentMatch:   intentsManager,
+		rnnIntentPath: "",
+		onnxLibPath:   "",
 	}
 }
 
@@ -129,6 +135,31 @@ func (t *Expert) SetToChatMessageHandler(handler func(any, string)) {
 // 前台占用启动专家实例。
 func (t *Expert) Run() {
 	logger.Info("Expert is running...")
+	if t.rnnIntentPath != "" || t.onnxLibPath != "" {
+		// 加载所有rnn 意图识别并注册到意图匹配管理器
+		logger.Info("Initializing RNN Intent Manager...")
+		rnnManager := NewRNNIntentManager()
+		rnnManager.SetRNNModelPath(t.rnnIntentPath)
+		rnnManager.SetLibPath(t.onnxLibPath)
+		rnnManager.LoadRNNModelIntents()
+
+		for name, intent := range rnnManager.GetAllRNNIntents() {
+			t.intentMatch.Register(intent.GetIntentExpertMatch, name)
+		}
+		t.rnnIntent = rnnManager
+		logger.Info("RNN Intent Manager initialized and intents registered.")
+	}
+	if t.dataFilePath != "" {
+		// 如果设置了数据文件路径，则加载意图缓存，并启动定期保存
+		logger.Info("Loading intent cache from file:", t.dataFilePath)
+		t.intentMatch.SetCacheFilePath(t.dataFilePath)
+		t.intentMatch.LoadIntentCache()
+		go t.intentMatch.PeriodicCacheSave(10 * time.Minute)
+	}
+
+	for {
+
+	}
 	// 启动逻辑的占位符
 }
 

@@ -111,9 +111,10 @@ func (r *RNNIntentManager) loadRNNIntent(name, description string, weight float3
 	}
 
 	newIntent := &RNNIntent{
-		intentName: name,
-		intentDesc: description,
-		Weight:     weight,
+		intentName:    name,
+		intentDesc:    description,
+		Weight:        weight,
+		modelDataPath: r.rnnModelPath,
 	}
 
 	// LoadModel 会处理 ONNX/Jieba 初始化和向 expert/core 的注册
@@ -177,10 +178,6 @@ type RNNIntent struct {
 	Weight        float32
 	intentName    string
 	intentDesc    string
-}
-
-func (r *RNNIntent) SetModelDataPath(data_path string) {
-	r.modelDataPath = data_path
 }
 
 // Close释放与RNNIntent关联的资源。
@@ -271,7 +268,7 @@ func (r *RNNIntent) GetIntentDesc() string {
 	return r.intentDesc
 }
 
-func (r *RNNIntent) NewCheckAutoStatusExpertMatch() IntentMatchInter {
+func (r *RNNIntent) GetIntentExpertMatch() IntentMatchInter {
 	return r
 }
 

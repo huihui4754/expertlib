@@ -7,6 +7,18 @@ type Attachment struct {
 	Option any    `json:"option"`
 }
 
+// ClientMessage  客户端发送给专家的消息
+type ClientMessage struct {
+	EventType int    `json:"event_type"`
+	DialogID  string `json:"dialog_id"`
+	MessageID string `json:"message_id"`
+	Messages  struct {
+		Content     string       `json:"content"`
+		Attachments []Attachment `json:"attachments"`
+	} `json:"messages"`
+}
+
+// ExpertToProgramMessage 专家发送给程序库的消息
 type ExpertToProgramMessage struct {
 	EventType int    `json:"event_type"`
 	DialogID  string `json:"dialog_id"`
