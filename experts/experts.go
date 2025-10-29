@@ -84,7 +84,7 @@ func (t *Expert) SetUserMessageHandler(handler func(any, string)) {
 func (t *Expert) HandleToolRequestMessage(message any) {
 	logger.Debug("HandleToolRequestMessage received:", message)
 	if t.toolMessageHandler != nil {
-		// Placeholder for actual logic
+		// 实际逻辑的占位符
 		t.toolMessageHandler("response from expert for tool", "")
 	}
 }
@@ -93,7 +93,7 @@ func (t *Expert) HandleToolRequestMessage(message any) {
 func (t *Expert) HandleToolRequestMessageString(message string) {
 	logger.Debug("HandleToolRequestMessageString received:", message)
 	if t.toolMessageHandler != nil {
-		// Placeholder for actual logic
+		// 实际逻辑的占位符
 		t.toolMessageHandler("response from expert for tool", "")
 	}
 }
@@ -107,7 +107,7 @@ func (t *Expert) SetToToolMessageHandler(handler func(any, string)) {
 func (t *Expert) HandleChatRequestMessage(message any) {
 	logger.Debug("HandleChatRequestMessage received:", message)
 	if t.chatMessageHandler != nil {
-		// Placeholder for actual logic
+		// 实际逻辑的占位符
 		t.chatMessageHandler("response from expert for chat", "")
 	}
 }
@@ -116,7 +116,7 @@ func (t *Expert) HandleChatRequestMessage(message any) {
 func (t *Expert) HandleChatRequestMessageString(message string) {
 	logger.Debug("HandleChatRequestMessageString received:", message)
 	if t.chatMessageHandler != nil {
-		// Placeholder for actual logic
+		// 实际逻辑的占位符
 		t.chatMessageHandler("response from expert for chat", "")
 	}
 }
