@@ -206,7 +206,8 @@ func (t *Expert) periodicSave() {
 // HandleUserRequestMessage 用户传给专家的消息由此进入
 func (t *Expert) HandleUserRequestMessage(message any) {
 	logger.Debug("HandleUserRequestMessage received:", message)
-	var messagePointer *TotalMessage
+	var messagePointer *TotalMessage //todo 后面可以优化成启动前初始化很多个 TotalMessage 指针，避免频繁分配内存,需要根据并发量决定是否使用，低频环境可能现在更适用
+	var err error
 	switch v := message.(type) {
 	case TotalMessage:
 		// 复制值类型，取新地址
@@ -222,21 +223,25 @@ func (t *Expert) HandleUserRequestMessage(message any) {
 		messagePointer = &msg
 	case string:
 		var totalMsg TotalMessage
-		err := json.Unmarshal([]byte(v), &totalMsg)
+		err = json.Unmarshal([]byte(v), &totalMsg)
 		if err == nil {
 			messagePointer = &totalMsg
+		} else {
+			logger.Errorf("无法解析字符串消息为 TotalMessage  message: %v,  err: %v", v, err)
 		}
 	case []byte:
 		var totalMsg TotalMessage
-		err := json.Unmarshal(v, &totalMsg)
+		err = json.Unmarshal(v, &totalMsg)
 		if err == nil {
 			messagePointer = &totalMsg
+		} else {
+			logger.Errorf("无法解析bytes消息为 TotalMessage  bytes: %v,  err: %v", string(v), err)
 		}
 
 	default:
 		logger.Error("不支持的消息结构")
 	}
-	if t.UserMessageInChan != nil && messagePointer != nil {
+	if t.UserMessageInChan != nil && messagePointer != nil && err == nil {
 		t.UserMessageInChan <- messagePointer
 	}
 }
