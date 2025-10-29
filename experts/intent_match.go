@@ -43,6 +43,15 @@ func (i *IntentMatchManager) SetCacheFilePath(path string) {
 	i.cacheFilePath = path
 }
 
+func (i *IntentMatchManager) SetVaildMinScore(score float64) {
+	i.vaildMinScore = score
+}
+
+// SetMessageFormatFun 设置匹配意图前的消息格式化函数，例如去掉url 等相关内容
+func (i *IntentMatchManager) SetMessageFormatFunc(formatting func(string) string) {
+	i.messageformatting = formatting
+}
+
 func (i *IntentMatchManager) Register(IntentMatcher func() IntentMatchInter, IntentName string) {
 	if i.allIntentMatcher[IntentName] != nil {
 		return
