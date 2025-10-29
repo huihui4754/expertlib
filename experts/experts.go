@@ -2,7 +2,9 @@ package experts
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
+	"os/user"
 	"path/filepath"
 	"sync"
 	"time"
@@ -45,9 +47,19 @@ type Expert struct {
 // NewExpert会建立Expert的新执行严修。
 func NewExpert() *Expert {
 	intentsManager := NewIntentManager()
+	defalutRnnModelPath := ""
+	defalutDataPath := ""
+	currentUser, err := user.Current()
+	if err != nil {
+		fmt.Printf("获取用户信息失败：%v\n", err)
+	} else {
+		defalutRnnModelPath = filepath.Join(currentUser.HomeDir, "expert", "rnnmodel")
+		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "dialog")
+	}
 	return &Expert{
 		intentMatch:   intentsManager,
-		rnnIntentPath: "",
+		rnnIntentPath: defalutRnnModelPath,
+		dataFilePath:  defalutDataPath,
 		onnxLibPath:   "",
 		messageInChan: make(chan TotalMessage, 1000),
 		dialogs:       make(map[string]*DialogInfo),
@@ -85,8 +97,10 @@ func (t *Expert) SetCommandFirst(commandFirst bool) {
 	logger.Info("Command first set to:", commandFirst)
 }
 
+// 设置ONNX动态库文件路径，用于RNN意图识别。需要提前下载放置好
 func (t *Expert) SetONNXLibPath(path string) {
-
+	t.onnxLibPath = path
+	logger.Info("ONNX library path set to:", path)
 }
 
 func (t *Expert) SetSaveIntervalTime(interval time.Duration) {
@@ -96,6 +110,10 @@ func (t *Expert) SetSaveIntervalTime(interval time.Duration) {
 
 func (t *Expert) defaultDialogPath() string {
 	return filepath.Join(t.dataFilePath, "user", "dailoginfo.json")
+}
+
+func (t *Expert) defaultIntentMatchCachePath() string {
+	return filepath.Join(t.dataFilePath, "user", "intentMatchCache.json")
 }
 
 // 设置保存dialog信息的处理函数，可以自定义保存逻辑，不会保存到默认文件路径，设置后会定时触发保存
@@ -273,8 +291,8 @@ func (t *Expert) Run() {
 	}
 	if t.dataFilePath != "" {
 		// 如果设置了数据文件路径，则加载意图缓存，并启动定期保存
-		logger.Info("Loading intent cache from path:", t.dataFilePath)
-		t.intentMatch.SetCacheFilePath(t.dataFilePath)
+		logger.Info("Loading intent cache from path:", t.defaultIntentMatchCachePath())
+		t.intentMatch.SetCacheFilePath(t.defaultIntentMatchCachePath())
 		t.intentMatch.LoadIntentCache()
 		go t.intentMatch.PeriodicCacheSave(t.saveInterval)
 	}
