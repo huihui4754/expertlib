@@ -429,6 +429,8 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 		t.dialogs[message.DialogID] = dialogx
 		t.dialogsMutex.Unlock()
 	}
+	dialogx.RWMutex.Lock()
+	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
 	case 1001: // 客户端发送消息
 
@@ -593,6 +595,8 @@ func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 		// 用户id 未记录，直接返回
 		return
 	}
+	dialogx.RWMutex.Lock()
+	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
 	case 2001: // 客户端发送消息
 
@@ -637,6 +641,8 @@ func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 		// 用户id 未注册
 		return
 	}
+	dialogx.RWMutex.Lock()
+	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
 	case 1001: // 多轮对话总结用户的需求，使用1001 代表用户返回请求专家
 		dialogx.Mutil = false
