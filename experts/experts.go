@@ -433,13 +433,14 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 	case 1001: // 客户端发送消息
 
 		logger.Infof("【用户提问】:%s", message.Messages.Content)
-		// // 如果有用户发送了两条连续相同（中间专家还未回复）的信息只存一条
-		// historyLen := len(dialogx.ChatHistory)
-		// if historyLen > 0 && dialogx.ChatHistory[historyLen-1] == "User: "+message.Messages.Content {
-		// 	// 连续相同的用户消息，不重复添加
-		// } else {
-		dialogx.ChatHistory = append(dialogx.ChatHistory, "User: "+message.Messages.Content)
-		// }
+
+		// 如果从程序库返回消息 2003 不支持，且原封不动返回给专家，则不加入历史记录，避免重复
+		historyLen := len(dialogx.ChatHistory)
+		if historyLen > 0 && dialogx.ChatHistory[historyLen-1] == "User: "+message.Messages.Content {
+			// 重复消息，不添加到历史记录
+		} else {
+			dialogx.ChatHistory = append(dialogx.ChatHistory, "User: "+message.Messages.Content)
+		}
 
 		if len(dialogx.ChatHistory) > t.chatSaveHistoryLimit {
 			dialogx.ChatHistory = dialogx.ChatHistory[len(dialogx.ChatHistory)-t.chatSaveHistoryLimit:]
@@ -585,11 +586,80 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 }
 
 func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
+	logger.Debug("收到程序库消息:", *message)
 
+	dialogx, exists := t.dialogs[message.DialogID]
+	if !exists {
+		// 用户id 未记录，直接返回
+		return
+	}
+	switch message.EventType {
+	case 2001: // 客户端发送消息
+
+		logger.Infof("【回复用户】:%s", message.Messages.Content)
+		dialogx.ChatHistory = append(dialogx.ChatHistory, "Progarm: "+message.Messages.Content)
+		// chatHistory 最大保存 t.chatSaveHistoryLimit 条信息
+		if len(dialogx.ChatHistory) > t.chatSaveHistoryLimit {
+			dialogx.ChatHistory = dialogx.ChatHistory[len(dialogx.ChatHistory)-t.chatSaveHistoryLimit:]
+		}
+
+		toUserMessage := *message
+		msg, err := json.Marshal(toUserMessage)
+		if err != nil {
+			logger.Error("Failed to marshal chat message: %v", err)
+		}
+		t.userMessageHandler(toUserMessage, string(msg))
+
+	case 2002: // 客户端终止对话
+		toUserMessage := *message
+		msg, err := json.Marshal(toUserMessage)
+		if err != nil {
+			logger.Error("Failed to marshal chat message: %v", err)
+		}
+		t.userMessageHandler(toUserMessage, string(msg))
+		dialogx.Program = ""
+
+	case 2003: // 专家不支持该能力需要重新分配一个专家
+		dialogx.Program = ""
+		t.handleFromUserMessage(message)
+
+	default:
+		log.Printf("收到未知事件类型: %d", message.EventType)
+	}
 }
 
 func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 
+	logger.Debug("收到多轮对话:", *message)
+
+	dialogx, exists := t.dialogs[message.DialogID]
+	if !exists {
+		// 用户id 未注册
+		return
+	}
+	switch message.EventType {
+	case 1001: // 多轮对话总结用户的需求，使用1001 代表用户返回请求专家
+		dialogx.Mutil = false
+		t.handleFromUserMessage(message)
+	case 2001: // 客户端发送消息
+
+		logger.Infof("【回复用户】:%s", message.Messages.Content)
+		dialogx.ChatHistory = append(dialogx.ChatHistory, "Chat: "+message.Messages.Content)
+		// chatHistory 最大保存20条信息
+		if len(dialogx.ChatHistory) > t.chatSaveHistoryLimit {
+			dialogx.ChatHistory = dialogx.ChatHistory[len(dialogx.ChatHistory)-t.chatSaveHistoryLimit:]
+		}
+
+		toUserMessage := *message
+		msg, err := json.Marshal(toUserMessage)
+		if err != nil {
+			logger.Error("Failed to marshal chat message: %v", err)
+		}
+		t.userMessageHandler(toUserMessage, string(msg))
+
+	default:
+		log.Printf("收到未知事件类型: %d", message.EventType)
+	}
 }
 
 // GetAllIntentNames returns all intent names.
