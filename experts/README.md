@@ -31,5 +31,5 @@ NewExpert() *Expert  // 获取专家 实例
 (t *Expert) Run() // 启动程序库实例
 
 (t *Expert) GetAllIntentNames() []string // 获取所有意图名称
-(t *Expert) UpdateIntentMatcher()  // 从本地模型路径重新加载意图识别模型
+(t *Expert) UpdateIntentMatcherFromFile()  // 从本地模型路径重新加载意图识别模型
 ```

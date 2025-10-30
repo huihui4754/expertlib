@@ -372,10 +372,8 @@ func (t *Expert) SetToChatMessageHandler(handler func(TotalMessage, string)) {
 	t.chatMessageHandler = handler
 }
 
-// 前台占用启动专家实例。
-func (t *Expert) Run() {
-	logger.Info("Expert is running...")
-	if t.rnnIntentPath != "" || t.onnxLibPath != "" {
+func (t *Expert) getRNNIntentMangerFromFile() {
+	if t.rnnIntentPath != "" || t.onnxLibPath != "" { // 目前只支持从文件系统中加载指定的rnn 意图识别器，后续可拓展，可以使用接口方便的在代码中加载意图识别器
 		// 加载所有rnn 意图识别并注册到意图匹配管理器
 		logger.Info("Initializing RNN Intent Manager...")
 		rnnManager := NewRNNIntentManager()
@@ -389,6 +387,12 @@ func (t *Expert) Run() {
 		t.rnnIntent = rnnManager
 		logger.Info("RNN Intent Manager initialized and intents registered.")
 	}
+}
+
+// 前台占用启动专家实例。
+func (t *Expert) Run() {
+	logger.Info("Expert is running...")
+	t.getRNNIntentMangerFromFile()
 	if t.dataFilePath != "" {
 		// 如果设置了数据文件路径，则加载意图缓存，并启动定期保存
 		logger.Info("Loading intent cache from path:", t.defaultIntentMatchCachePath())
@@ -684,8 +688,11 @@ func (t *Expert) GetAllIntentNames() []string {
 }
 
 // UpdateIntentMatcher 从设置的路径更新意图匹配器。
-func (t *Expert) UpdateIntentMatcher() {
+func (t *Expert) UpdateIntentMatcherFromFile() {
 	logger.Info("Updating intent matcher...")
 	// 实际逻辑的占位符
-	//todo 此处重新加载所有意图匹配器
+	intentsName := t.GetAllIntentNames()
+	for _, name := range intentsName {
+		t.intentMatch.UnRegister(name)
+	}
 }
