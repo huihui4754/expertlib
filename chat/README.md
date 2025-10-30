@@ -9,9 +9,8 @@ NewChat() *Chat  // 获取多轮对话 实例
 (t *Chat) SetSystemPrompt(string) // 设置多轮对话个性能力提示词
 (t *Chat) SetFunctionCall([]funcall) //
 
-(t *Chat) HandleExpertRequestMessage(jsonx any)  // 给多轮对话的消息由此传入 
-(t *Chat) HandleExpertRequestMessageString(string)  // 给多轮对话的消息由此传入 ,字符串传入，chat 内部会自己解析，和 HandleUserRequestMessage 二选一使用
-(t *Chat) SetToExpertMessageHandler(func(any,string)) // 由此监听多轮对话返回的消息 ,对象 和 字符串是同样的，
+(t *Tool) HandleExpertRequestMessage(any)  // 给多轮对话的消息由此传入，支持 TotalMessage ， string ,[]byte 等多种类型
+(t *Tool) SetToExpertMessageHandler(func(TotalMessage,string))  // 由此监听多轮对话返回的消息
 
 (t *Chat) Run() // 启动多轮对话实例
 

@@ -13,13 +13,13 @@ NewExpert() *Expert  // 获取专家 实例
 (t *Expert) SetDataFilePath(string) // 设置数据卷路径路径  不设置默认用 ~/expert/experts/  支持配置文件设置
 (t *Expert) SetRNNIntentPath(string) // 设置本地rnn 意图识别模型路径 不设置默认用 ~/expert/models/ 支持配置文件设置
 (t *Expert) SetCommandFirst(bool) // 设置进入多轮对话时命令优先 支持配置文件设置
-(t *Expert) SetONNXLibPath(string) // 设置ONNX动态库文件路径
+(t *Expert) SetONNXLibPath(string) // 设置ONNX动态库文件路径,onnxruntime 动态库需要下载并指明路径
 (t *Expert) SetSaveIntervalTime(time.Duration) // 设置保存dialog信息和意图保存的时间间隔
 
 (t *Expert) SetSaveDialogInfoHandler(func(map[string]*DialogInfo)) // 设置保存dialog信息的处理函数
 (t *Expert) SetLoadDialogInfoHandler(func() map[string]*DialogInfo) // 设置加载dialog信息的处理函数
 
-(t *Expert) HandleUserRequestMessage(any)  // 给专家的消息由此传入
+(t *Expert) HandleUserRequestMessage(any)  // 给专家的消息由此传入，支持 TotalMessage ， string ,[]byte 等多种类型
 (t *Expert) SetToUserMessageHandler(func(TotalMessage, string)) // 由此监听专家返回给用户的消息
 
 (t *Expert) HandleProgramRequestMessage(any)  // 程序库给专家的消息由此传入
