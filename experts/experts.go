@@ -26,22 +26,24 @@ type DialogInfo = types.DialogInfo
 
 // Expert结构体保存expert实例的配置和处理程序。
 type Expert struct {
-	dataFilePath        string
-	rnnIntentPath       string
-	onnxLibPath         string
-	commandFirst        bool
-	userMessageHandler  func(any, string)
-	toolMessageHandler  func(any, string)
-	chatMessageHandler  func(any, string)
-	intentMatch         *IntentMatchManager //意图识别管理器
-	rnnIntent           *RNNIntentManager   //RNN意图管理器
-	UserMessageInChan   chan *TotalMessage  //用户消息输入通道
-	dialogs             map[string]*DialogInfo
-	dialogsMutex        *sync.RWMutex
-	lastSavedDialogInfo string // 上次保存的dialog 信息的字符串表示
-	saveDialogInfoFunc  func(map[string]*DialogInfo)
-	loadDialogInfoFunc  func() map[string]*DialogInfo
-	saveInterval        time.Duration // 定时保存dialog 和 意图识别间隔时间
+	dataFilePath          string
+	rnnIntentPath         string
+	onnxLibPath           string
+	commandFirst          bool
+	userMessageHandler    func(any, string)
+	programMessageHandler func(any, string)
+	chatMessageHandler    func(any, string)
+	intentMatch           *IntentMatchManager //意图识别管理器
+	rnnIntent             *RNNIntentManager   //RNN意图管理器
+	UserMessageInChan     chan *TotalMessage  //用户消息输入通道
+	ProgramMessageInChan  chan *TotalMessage  //程序库消息输入通道
+	ChatMessageInChan     chan *TotalMessage  //多轮对话消息输入通道
+	dialogs               map[string]*DialogInfo
+	dialogsMutex          *sync.RWMutex
+	lastSavedDialogInfo   string // 上次保存的dialog 信息的字符串表示
+	saveDialogInfoFunc    func(map[string]*DialogInfo)
+	loadDialogInfoFunc    func() map[string]*DialogInfo
+	saveInterval          time.Duration // 定时保存dialog 和 意图识别间隔时间
 }
 
 // NewExpert会建立Expert的新执行严修。
@@ -57,24 +59,30 @@ func NewExpert() *Expert {
 		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "dialog")
 	}
 	return &Expert{
-		intentMatch:       intentsManager,
-		rnnIntentPath:     defalutRnnModelPath,
-		dataFilePath:      defalutDataPath,
-		onnxLibPath:       "",
-		UserMessageInChan: make(chan *TotalMessage, 1000),
-		dialogs:           make(map[string]*DialogInfo),
-		dialogsMutex:      &sync.RWMutex{},
+		intentMatch:          intentsManager,
+		rnnIntentPath:        defalutRnnModelPath,
+		dataFilePath:         defalutDataPath,
+		onnxLibPath:          "",
+		UserMessageInChan:    make(chan *TotalMessage, 1000),
+		ProgramMessageInChan: make(chan *TotalMessage, 1000),
+		ChatMessageInChan:    make(chan *TotalMessage, 1000),
+		saveInterval:         10 * time.Minute,
+		dialogs:              make(map[string]*DialogInfo),
+		dialogsMutex:         &sync.RWMutex{},
 	}
 }
 
+// SetMessageFormatFunc 设置消息处理后再送入意图识别器的格式化函数  ，避免消息中部分数据和训练数据无关影响识别等
 func (t *Expert) SetMessageFormatFunc(formatting func(string) string) {
 	t.intentMatch.SetMessageFormatFunc(formatting)
 }
 
+// 可以通过此接口来注册意图匹配器
 func (t *Expert) Register(intentMatcher func() IntentMatchInter, intentName string) {
 	t.intentMatch.Register(intentMatcher, intentName)
 }
 
+// UnRegister 注销某个意图匹配器
 func (t *Expert) UnRegister(intentName string) {
 	t.intentMatch.UnRegister(intentName)
 }
@@ -103,15 +111,18 @@ func (t *Expert) SetONNXLibPath(path string) {
 	logger.Info("ONNX library path set to:", path)
 }
 
+// SetSaveIntervalTime 设置保存dialog信息和意图保存的时间间隔
 func (t *Expert) SetSaveIntervalTime(interval time.Duration) {
 	t.saveInterval = interval
 	logger.Info("Save interval time set to:", interval)
 }
 
+// 内部使用，获取默认保存dialog信息的路径
 func (t *Expert) defaultDialogPath() string {
 	return filepath.Join(t.dataFilePath, "user", "dailoginfo.json")
 }
 
+// 内部使用，获取默认保存意图匹配缓存的路径
 func (t *Expert) defaultIntentMatchCachePath() string {
 	return filepath.Join(t.dataFilePath, "user", "intentMatchCache.json")
 }
@@ -193,6 +204,7 @@ func (t *Expert) saveDialogInfo() {
 	}
 }
 
+// 定期保存dialog信息
 func (t *Expert) periodicSave() {
 	ticker := time.NewTicker(t.saveInterval)
 	defer ticker.Stop()
@@ -203,7 +215,7 @@ func (t *Expert) periodicSave() {
 	}
 }
 
-// HandleUserRequestMessage 用户传给专家的消息由此进入
+// HandleUserRequestMessage 用户传给专家的消息由此进入，可以传入多种格式。
 func (t *Expert) HandleUserRequestMessage(message any) {
 	logger.Debug("HandleUserRequestMessage received:", message)
 	var messagePointer *TotalMessage //todo 后面可以优化成启动前初始化很多个 TotalMessage 指针，避免频繁分配内存,需要根据并发量决定是否使用，低频环境可能现在更适用
@@ -246,58 +258,99 @@ func (t *Expert) HandleUserRequestMessage(message any) {
 	}
 }
 
-// func getTotalMessageFromBytes(message []byte) (*TotalMessage, error) {
-// 	var totalMsg TotalMessage
-// 	err := json.Unmarshal(message, &totalMsg)
-// 	if err != nil {
-// 		return nil, err
-// 	}
-// 	return &totalMsg, err
-// }
-
 // SetUserMessage 设置返回给用户的消息处理函数
 func (t *Expert) SetUserMessageHandler(handler func(any, string)) {
 	t.userMessageHandler = handler
 }
 
-// HandleToolRequestMessage  程序库（工具）传给专家的消息由此进入
-func (t *Expert) HandleToolRequestMessage(message any) {
-	logger.Debug("HandleToolRequestMessage received:", message)
-	if t.toolMessageHandler != nil {
-		// 实际逻辑的占位符
-		t.toolMessageHandler("response from expert for tool", "")
-	}
-}
+// HandleProgramRequestMessage  程序库（工具）传给专家的消息由此进入
+func (t *Expert) HandleProgramRequestMessage(message any) {
+	logger.Debug("HandleProgramRequestMessage received:", message)
+	var messagePointer *TotalMessage
+	var err error
+	switch v := message.(type) {
+	case TotalMessage:
+		// 复制值类型，取新地址
+		msg := v
+		messagePointer = &msg
+	case *TotalMessage:
+		if v == nil {
+			logger.Error("*TotalMessage 为 nil")
+			break
+		}
+		// 复制指针指向的值，取新地址（避免外部修改影响）
+		msg := *v // 解引用并复制
+		messagePointer = &msg
+	case string:
+		var totalMsg TotalMessage
+		err = json.Unmarshal([]byte(v), &totalMsg)
+		if err == nil {
+			messagePointer = &totalMsg
+		} else {
+			logger.Errorf("无法解析字符串消息为 TotalMessage  message: %v,  err: %v", v, err)
+		}
+	case []byte:
+		var totalMsg TotalMessage
+		err = json.Unmarshal(v, &totalMsg)
+		if err == nil {
+			messagePointer = &totalMsg
+		} else {
+			logger.Errorf("无法解析bytes消息为 TotalMessage  bytes: %v,  err: %v", string(v), err)
+		}
 
-// HandleToolRequestMessageString  程序库（工具）传给专家的消息由此进入 ，一条消息只用传输一次，和上面二选一
-func (t *Expert) HandleToolRequestMessageString(message string) {
-	logger.Debug("HandleToolRequestMessageString received:", message)
-	if t.toolMessageHandler != nil {
-		// 实际逻辑的占位符
-		t.toolMessageHandler("response from expert for tool", "")
+	default:
+		logger.Error("不支持的消息结构")
+	}
+	if t.ProgramMessageInChan != nil && messagePointer != nil && err == nil {
+		t.ProgramMessageInChan <- messagePointer
 	}
 }
 
 // SetUserMessage 设置返回给工具的消息处理函数
-func (t *Expert) SetToToolMessageHandler(handler func(any, string)) {
-	t.toolMessageHandler = handler
+func (t *Expert) SetToProgramMessageHandler(handler func(any, string)) {
+	t.programMessageHandler = handler
 }
 
 // HandleChatRequestMessage  多轮对话传给专家的消息由此进入
 func (t *Expert) HandleChatRequestMessage(message any) {
 	logger.Debug("HandleChatRequestMessage received:", message)
-	if t.chatMessageHandler != nil {
-		// 实际逻辑的占位符
-		t.chatMessageHandler("response from expert for chat", "")
-	}
-}
+	var messagePointer *TotalMessage
+	var err error
+	switch v := message.(type) {
+	case TotalMessage:
+		// 复制值类型，取新地址
+		msg := v
+		messagePointer = &msg
+	case *TotalMessage:
+		if v == nil {
+			logger.Error("*TotalMessage 为 nil")
+			break
+		}
+		// 复制指针指向的值，取新地址（避免外部修改影响）
+		msg := *v // 解引用并复制
+		messagePointer = &msg
+	case string:
+		var totalMsg TotalMessage
+		err = json.Unmarshal([]byte(v), &totalMsg)
+		if err == nil {
+			messagePointer = &totalMsg
+		} else {
+			logger.Errorf("无法解析字符串消息为 TotalMessage  message: %v,  err: %v", v, err)
+		}
+	case []byte:
+		var totalMsg TotalMessage
+		err = json.Unmarshal(v, &totalMsg)
+		if err == nil {
+			messagePointer = &totalMsg
+		} else {
+			logger.Errorf("无法解析bytes消息为 TotalMessage  bytes: %v,  err: %v", string(v), err)
+		}
 
-// HandleChatRequestMessageString 多轮对话传给专家的消息由此进入 ，一条消息只用传输一次，和上面二选一
-func (t *Expert) HandleChatRequestMessageString(message string) {
-	logger.Debug("HandleChatRequestMessageString received:", message)
-	if t.chatMessageHandler != nil {
-		// 实际逻辑的占位符
-		t.chatMessageHandler("response from expert for chat", "")
+	default:
+		logger.Error("不支持的消息结构")
+	}
+	if t.ChatMessageInChan != nil && messagePointer != nil && err == nil {
+		t.ChatMessageInChan <- messagePointer
 	}
 }
 
