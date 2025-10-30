@@ -18,12 +18,13 @@ type TotalMessage struct {
 	DialogID           string               `json:"dialog_id"`
 	UserId             string               `json:"user_id"`
 	MessageID          string               `json:"message_id,omitempty"`
-	Intention          string               `json:"intention,omitempty"` // 专家告诉程序库匹配的意图
-	PossibleIntentions []PossibleIntentions `json:"possible_intentions,omitempty"`
+	Intention          string               `json:"intention,omitempty"`           // 专家告诉程序库匹配的意图,专家发给程序库才有此字段
+	PossibleIntentions []PossibleIntentions `json:"possible_intentions,omitempty"` // 专家告诉多轮会话可能匹配的意图,专家发给多轮对话才有此字段
 	Messages           struct {
 		Content     string       `json:"content"`
 		Attachments []Attachment `json:"attachments"`
-		History     []string     `json:"history,omitempty"`
+		History     []string     `json:"history,omitempty"` // 当前dialog的历史消息记录,专家发给多轮对话才有此字段
+
 	} `json:"messages,omitzero"`
 }
 
@@ -52,8 +53,8 @@ type ExpertToProgramMessage struct {
 	} `json:"messages"`
 }
 
-// ExpertToProgramMessage 专家发送给多轮对话的消息
-type ExpertToProgramChatMessage struct {
+// ExpertToChatMessage 专家发送给多轮对话的消息
+type ExpertToChatMessage struct {
 	EventType          int                  `json:"event_type"`
 	DialogID           string               `json:"dialog_id"`
 	MessageID          string               `json:"message_id"`

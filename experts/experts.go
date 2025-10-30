@@ -3,6 +3,7 @@ package experts
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -30,9 +31,9 @@ type Expert struct {
 	rnnIntentPath         string
 	onnxLibPath           string
 	commandFirst          bool
-	userMessageHandler    func(any, string)
-	programMessageHandler func(any, string)
-	chatMessageHandler    func(any, string)
+	userMessageHandler    func(TotalMessage, string)
+	programMessageHandler func(TotalMessage, string)
+	chatMessageHandler    func(TotalMessage, string)
 	intentMatch           *IntentMatchManager //意图识别管理器
 	rnnIntent             *RNNIntentManager   //RNN意图管理器
 	UserMessageInChan     chan *TotalMessage  //用户消息输入通道
@@ -44,6 +45,7 @@ type Expert struct {
 	saveDialogInfoFunc    func(map[string]*DialogInfo)
 	loadDialogInfoFunc    func() map[string]*DialogInfo
 	saveInterval          time.Duration // 定时保存dialog 和 意图识别间隔时间
+	chatSaveHistoryLimit  int           // 多轮对话保存的历史消息条数限制
 }
 
 // NewExpert会建立Expert的新执行严修。
@@ -69,7 +71,17 @@ func NewExpert() *Expert {
 		saveInterval:         10 * time.Minute,
 		dialogs:              make(map[string]*DialogInfo),
 		dialogsMutex:         &sync.RWMutex{},
+		chatSaveHistoryLimit: 20,
 	}
+}
+
+// SetChatSaveHistoryLimit 设置多轮对话保存的历史消息条数限制
+func (t *Expert) SetChatSaveHistoryLimit(limit int) {
+	if limit <= 0 {
+		limit = 1
+	}
+	t.chatSaveHistoryLimit = limit
+	logger.Info("Chat save history limit set to:", limit)
 }
 
 // SetMessageFormatFunc 设置消息处理后再送入意图识别器的格式化函数  ，避免消息中部分数据和训练数据无关影响识别等
@@ -177,16 +189,17 @@ func (t *Expert) loadDialogInfo() {
 
 // 保存daialog信息
 func (t *Expert) saveDialogInfo() {
-	t.dialogsMutex.Lock()
-	defer t.dialogsMutex.Unlock()
 
 	if t.saveDialogInfoFunc != nil {
+		t.dialogsMutex.Lock()
 		t.saveDialogInfoFunc(t.dialogs)
+		t.dialogsMutex.Unlock()
 		logger.Info("Saved user info using custom saver.")
 		return
 	}
-
+	t.dialogsMutex.Lock()
 	data, err := json.MarshalIndent(t.dialogs, "", "  ")
+	t.dialogsMutex.Unlock()
 	if err != nil {
 		logger.Errorf("Failed to marshal user info data: %v", err)
 		return
@@ -259,7 +272,7 @@ func (t *Expert) HandleUserRequestMessage(message any) {
 }
 
 // SetUserMessage 设置返回给用户的消息处理函数
-func (t *Expert) SetUserMessageHandler(handler func(any, string)) {
+func (t *Expert) SetToUserMessageHandler(handler func(TotalMessage, string)) {
 	t.userMessageHandler = handler
 }
 
@@ -307,7 +320,7 @@ func (t *Expert) HandleProgramRequestMessage(message any) {
 }
 
 // SetUserMessage 设置返回给工具的消息处理函数
-func (t *Expert) SetToProgramMessageHandler(handler func(any, string)) {
+func (t *Expert) SetToProgramMessageHandler(handler func(TotalMessage, string)) {
 	t.programMessageHandler = handler
 }
 
@@ -355,7 +368,7 @@ func (t *Expert) HandleChatRequestMessage(message any) {
 }
 
 // SetToChatMessageHandler 设置返回给多轮对话的消息处理函数
-func (t *Expert) SetToChatMessageHandler(handler func(any, string)) {
+func (t *Expert) SetToChatMessageHandler(handler func(TotalMessage, string)) {
 	t.chatMessageHandler = handler
 }
 
@@ -387,10 +400,196 @@ func (t *Expert) Run() {
 	t.loadDialogInfo()
 	go t.periodicSave()
 
-	for chunk := range t.UserMessageInChan {
-		logger.Debug("Processing message from channel:", chunk)
+	for {
+		select {
+		case userMsg := <-t.UserMessageInChan:
+			go t.handleFromUserMessage(userMsg)
+		case programMsg := <-t.ProgramMessageInChan:
+			go t.handleFromProgramMessage(programMsg)
+		case chatMsg := <-t.ChatMessageInChan:
+			go t.handleFromChatMessage(chatMsg)
+		}
 	}
 	// 启动逻辑的占位符
+}
+
+// type ExpertToChatMessage = types.ExpertToChatMessage
+// type ExpertToProgramMessage = types.ExpertToProgramMessage
+
+func (t *Expert) handleFromUserMessage(message *TotalMessage) {
+	dialogx, exists := t.dialogs[message.DialogID]
+	if !exists {
+		dialogx = &DialogInfo{
+			UserID:      message.UserId,
+			DialogID:    message.DialogID,
+			Program:     "",
+			ChatHistory: make([]string, 0),
+		}
+		t.dialogsMutex.Lock()
+		t.dialogs[message.DialogID] = dialogx
+		t.dialogsMutex.Unlock()
+	}
+	switch message.EventType {
+	case 1001: // 客户端发送消息
+
+		logger.Infof("【用户提问】:%s", message.Messages.Content)
+		// // 如果有用户发送了两条连续相同（中间专家还未回复）的信息只存一条
+		// historyLen := len(dialogx.ChatHistory)
+		// if historyLen > 0 && dialogx.ChatHistory[historyLen-1] == "User: "+message.Messages.Content {
+		// 	// 连续相同的用户消息，不重复添加
+		// } else {
+		dialogx.ChatHistory = append(dialogx.ChatHistory, "User: "+message.Messages.Content)
+		// }
+
+		if len(dialogx.ChatHistory) > t.chatSaveHistoryLimit {
+			dialogx.ChatHistory = dialogx.ChatHistory[len(dialogx.ChatHistory)-t.chatSaveHistoryLimit:]
+		}
+
+		// if messageEvent.Intention != "" {
+		// 	userInfo.Expert = messageEvent.Intention
+		// 	if userInfo.FirstMutil {
+		// 		expert.CacheContentIntent(messageEvent.Messages.Content, messageEvent.Intention)
+		// 	}
+		// }
+
+		if dialogx.Program == "" { // 还没有分配到程序库
+			logger.Debug("为其寻找合适的专家")
+			var possibleIntentions []PossibleIntentions
+			bestProgram, possibleIntentions := t.intentMatch.FindBestIntent(message.Messages.Content, message.Messages.Attachments, !dialogx.Mutil)
+
+			var gotoMutil bool // 是否要走多轮对话
+			if dialogx.Mutil { // 如果在多轮中
+				if bestProgram != "" && t.commandFirst { // 找到合适的专家并且是命令优先就去走程序库
+					gotoMutil = false
+					dialogx.Program = bestProgram
+				} else { // 否则给多轮对话
+					gotoMutil = true
+				}
+			} else { // 如果不在多轮中
+				if bestProgram != "" {
+					gotoMutil = false
+					dialogx.Program = bestProgram
+				} else {
+					gotoMutil = true
+				}
+			}
+			if gotoMutil { // 去走多轮对话
+				logger.Debug("分配给多轮对话识别")
+
+				// 用户说的第一句话没有匹配到意图，需要多轮识别，仅限一个场景中的第一句话用以存储意图识别识别不到而多轮识别到存入缓存
+				dialogx.FirstMutil = !dialogx.Mutil
+				dialogx.Mutil = true
+
+				// toChatMessage := ExpertToChatMessage{
+				// 	EventType:          1001,
+				// 	DialogID:           message.DialogID,
+				// 	MessageID:          message.MessageID,
+				// 	UserId:             message.UserId,
+				// 	PossibleIntentions: possibleIntentions,
+				// 	Messages: struct {
+				// 		Content     string             `json:"content"`
+				// 		Attachments []types.Attachment `json:"attachments"`
+				// 		History     []string           `json:"history,omitempty"`
+				// 	}{
+				// 		Content:     message.Messages.Content,
+				// 		Attachments: message.Messages.Attachments,
+				// 		History:     dialogx.ChatHistory,
+				// 	},
+				// }
+
+				toChatMessage := *message
+				toChatMessage.PossibleIntentions = possibleIntentions
+				toChatMessage.Messages.History = dialogx.ChatHistory
+
+				msg, err := json.Marshal(toChatMessage)
+				if err != nil {
+					logger.Error("Failed to marshal chat message: %v", err)
+				}
+				t.chatMessageHandler(toChatMessage, string(msg))
+				return
+			} else {
+				dialogx.FirstMutil = false
+				dialogx.Mutil = false
+
+				// toProgramMessage := ExpertToProgramMessage{
+				// 	EventType: 1001,
+				// 	DialogID:  message.DialogID,
+				// 	MessageID: message.MessageID,
+				// 	UserId:    message.UserId,
+				// 	Intention: dialogx.Program,
+				// 	Messages: struct {
+				// 		Content     string             `json:"content"`
+				// 		Attachments []types.Attachment `json:"attachments"`
+				// 	}{
+				// 		Content:     message.Messages.Content,
+				// 		Attachments: message.Messages.Attachments,
+				// 	},
+				// }
+
+				toProgramMessage := *message
+				toProgramMessage.Intention = dialogx.Program
+
+				msg, err := json.Marshal(toProgramMessage)
+				if err != nil {
+					logger.Error("Failed to marshal client message: %v", err)
+				}
+				logger.Debug("分配到专家:", dialogx.Program)
+				t.programMessageHandler(toProgramMessage, string(msg))
+				return
+			}
+		} else {
+			dialogx.FirstMutil = false
+			logger.Debug("继续使用当前程序库:", dialogx.Program)
+
+			// toProgramMessage := ExpertToProgramMessage{
+			// 	EventType: 1001,
+			// 	DialogID:  message.DialogID,
+			// 	MessageID: message.MessageID,
+			// 	UserId:    message.UserId,
+			// 	Intention: dialogx.Program,
+			// 	Messages: struct {
+			// 		Content     string             `json:"content"`
+			// 		Attachments []types.Attachment `json:"attachments"`
+			// 	}{
+			// 		Content:     message.Messages.Content,
+			// 		Attachments: message.Messages.Attachments,
+			// 	},
+			// }
+
+			toProgramMessage := *message
+			toProgramMessage.Intention = dialogx.Program
+
+			msg, err := json.Marshal(toProgramMessage)
+			if err != nil {
+				logger.Error("Failed to marshal client message: %v", err)
+			}
+			logger.Debug("分配到专家:", dialogx.Program)
+			t.programMessageHandler(toProgramMessage, string(msg))
+			return
+		}
+	case 1002: // 客户端终止对话
+		if dialogx.Program == "" {
+			return
+		}
+		msg, err := json.Marshal(message)
+		if err != nil {
+			logger.Error("Failed to marshal client message: %v", err)
+		}
+		toProgramMessage := *message
+		t.programMessageHandler(toProgramMessage, string(msg))
+		dialogx.Program = ""
+
+	default:
+		log.Printf("收到未知事件类型: %d", message.EventType)
+	}
+}
+
+func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
+
+}
+
+func (t *Expert) handleFromChatMessage(message *TotalMessage) {
+
 }
 
 // GetAllIntentNames returns all intent names.
