@@ -6,6 +6,7 @@ NewChat() *Chat  // 获取多轮对话 实例
 
 (t *Chat) SetDataFilePath(string) // 设置数据卷路径路径  不设置默认用 ~/expert/chat/ 支持配置文件设置
 (t *Chat) SetLLMUrl(string) // 设置大模型链接路径  支持配置文件设置
+(t *Chat) SetRequestLLMHeaders(string)
 (t *Chat) SetSystemPrompt(string) // 设置多轮对话个性能力提示词
 (t *Chat) SetFunctionCall([]funcall) //
 

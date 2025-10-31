@@ -48,12 +48,12 @@ type Expert struct {
 	chatSaveHistoryLimit  int           // 多轮对话保存的历史消息条数限制
 }
 
-// NewExpert会建立Expert的新执行严修。
+// NewExpert会建立Expert的对象
 func NewExpert() *Expert {
 	intentsManager := NewIntentManager()
 	defalutRnnModelPath := ""
 	defalutDataPath := ""
-	currentUser, err := user.Current()
+	currentUser, err := user.Current() // todo 后续支持从配置文件读取配置
 	if err != nil {
 		fmt.Printf("获取用户信息失败：%v\n", err)
 	} else {

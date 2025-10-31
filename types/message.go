@@ -13,6 +13,7 @@ type Attachment struct {
 	Option any    `json:"option,omitempty"`
 }
 
+// 涵盖下面多种消息类型
 type TotalMessage struct {
 	EventType          int                  `json:"event_type"`
 	DialogID           string               `json:"dialog_id"`

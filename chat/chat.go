@@ -19,11 +19,11 @@ type Chat struct {
 	DataFilePath         string
 	LLMUrl               string
 	SystemPrompt         string
-	FunctionCalls        []funcall
+	FunctionCalls        []Funcall
 	ExpertMessageHandler func(TotalMessage, string)
 }
 
-type funcall struct {
+type Funcall struct {
 	// Define the structure of a function call
 }
 
