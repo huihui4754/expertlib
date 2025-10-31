@@ -1,14 +1,17 @@
 package chat
 
 import (
-	"github.com/huihui4754/expertlib/loglevel"
+	"github.com/huihui4754/expertlib/types"
+	"github.com/huihui4754/loglevel"
 )
+
+type TotalMessage = types.TotalMessage
 
 var (
 	logger = loglevel.NewLog(loglevel.Debug)
 )
 
-func SetLogger(level int) {
+func SetLogger(level loglevel.Level) {
 	logger.SetLevel(level)
 }
 
@@ -17,7 +20,7 @@ type Chat struct {
 	LLMUrl               string
 	SystemPrompt         string
 	FunctionCalls        []funcall
-	ExpertMessageHandler func(any, string)
+	ExpertMessageHandler func(TotalMessage, string)
 }
 
 type funcall struct {
@@ -53,12 +56,7 @@ func (t *Chat) HandleExpertRequestMessage(jsonx any) {
 	logger.Debug("Handling Expert request message:", jsonx)
 }
 
-func (t *Chat) HandleExpertRequestMessageString(message string) {
-	// Handle the Expert request message string here
-	logger.Debug("Handling Expert request message string:", message)
-}
-
-func (t *Chat) SetToExpertMessageHandler(handler func(any, string)) {
+func (t *Chat) SetToExpertMessageHandler(handler func(TotalMessage, string)) {
 	t.ExpertMessageHandler = handler
 	logger.Info("ExpertMessageHandler set")
 }

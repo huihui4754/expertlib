@@ -1,14 +1,14 @@
 package tools
 
 import (
-	"github.com/huihui4754/expertlib/loglevel"
+	"github.com/huihui4754/loglevel"
 )
 
 var (
 	logger = loglevel.NewLog(loglevel.Debug)
 )
 
-func SetLogger(level int) {
+func SetLogger(level loglevel.Level) {
 	logger.SetLevel(level)
 }
 

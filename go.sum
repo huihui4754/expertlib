@@ -1,5 +1,7 @@
 github.com/gorilla/websocket v1.5.3 h1:saDtZ6Pbx/0u+bgYQ3q96pZgCzfhKXGPqt7kZ72aNNg=
 github.com/gorilla/websocket v1.5.3/go.mod h1:YR8l580nyteQvAITg2hZ9XVh4b55+EU/adAjf1fMHhE=
+github.com/huihui4754/loglevel v1.0.1 h1:01W2FAyUS1XSdHRe3lwdlp7O8DXYWEFnsSb646TSe1w=
+github.com/huihui4754/loglevel v1.0.1/go.mod h1:bYGeJg0d5CYJUnKTf5RvGJRlufdYD4tnLB3hjB25M0E=
 github.com/yalue/onnxruntime_go v1.21.0 h1:DdtvfY7OP5gR8mwPDqAOAQckf+KcI30hPNJL8hQaYWI=
 github.com/yalue/onnxruntime_go v1.21.0/go.mod h1:b4X26A8pekNb1ACJ58wAXgNKeUCGEAQ9dmACut9Sm/4=
 github.com/yanyiwu/gojieba v1.4.6 h1:9oKbZijSHBdoTabXK34romSWj4aQLvs+j1ctIQjSxPk=

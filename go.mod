@@ -7,3 +7,5 @@ require (
 	github.com/yalue/onnxruntime_go v1.21.0
 	github.com/yanyiwu/gojieba v1.4.6
 )
+
+require github.com/huihui4754/loglevel v1.0.1 // indirect

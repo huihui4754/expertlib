@@ -10,15 +10,15 @@ import (
 	"sync"
 	"time"
 
-	"github.com/huihui4754/expertlib/loglevel"
 	"github.com/huihui4754/expertlib/types"
+	"github.com/huihui4754/loglevel"
 )
 
 var (
 	logger = loglevel.NewLog(loglevel.Debug)
 )
 
-func SetLogger(level int) {
+func SetLogger(level loglevel.Level) {
 	logger.SetLevel(level)
 }
 
@@ -688,11 +688,12 @@ func (t *Expert) GetAllIntentNames() []string {
 }
 
 // UpdateIntentMatcher 从设置的路径更新意图匹配器。
-func (t *Expert) UpdateIntentMatcherFromFile() {
-	logger.Info("Updating intent matcher...")
+func (t *Expert) UpdateIntentMatcherFromRNNPath() {
+	logger.Info("Updating RNN intent matcher...")
 	// 实际逻辑的占位符
-	intentsName := t.GetAllIntentNames()
-	for _, name := range intentsName {
-		t.intentMatch.UnRegister(name)
+	for name := range t.rnnIntent.GetAllRNNIntents() {
+		t.UnRegister(name)
 	}
+	t.rnnIntent = nil
+	t.getRNNIntentMangerFromFile()
 }

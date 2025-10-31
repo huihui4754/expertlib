@@ -31,5 +31,5 @@ NewExpert() *Expert  // 获取专家 实例
 (t *Expert) Run() // 启动程序库实例
 
 (t *Expert) GetAllIntentNames() []string // 获取所有意图名称
-(t *Expert) UpdateIntentMatcherFromFile()  // 从本地模型路径重新加载意图识别模型
+(t *Expert) UpdateIntentMatcherFromRNNPath()  // 从本地rnn 路径重新加载所有rnn 模型，用于增加或删除意图识别后更新使用
 ```
