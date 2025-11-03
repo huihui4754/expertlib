@@ -10,8 +10,8 @@ NewExpert() *Expert  // 获取专家 实例
 (t *Expert) Register(func() IntentMatchInter, string) // 注册意图匹配器
 (t *Expert) UnRegister(string) // 注销某个意图匹配器
 
-(t *Expert) SetDataFilePath(string) // 设置数据卷路径路径  不设置默认用 ~/expert/experts/  支持配置文件设置
-(t *Expert) SetRNNIntentPath(string) // 设置本地rnn 意图识别模型路径 不设置默认用 ~/expert/models/ 支持配置文件设置
+(t *Expert) SetDataFilePath(string) // 设置数据卷路径路径  不设置默认用 ~/expert/dialog/  支持配置文件设置
+(t *Expert) SetRNNIntentPath(string) // 设置本地rnn 意图识别模型路径 不设置默认用 ~/expert/rnnmodel/ 支持配置文件设置
 (t *Expert) SetCommandFirst(bool) // 设置进入多轮对话时命令优先 支持配置文件设置
 (t *Expert) SetONNXLibPath(string) // 设置ONNX动态库文件路径,onnxruntime 动态库需要下载并指明路径
 (t *Expert) SetSaveIntervalTime(time.Duration) // 设置保存dialog信息和意图保存的时间间隔
