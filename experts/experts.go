@@ -38,9 +38,9 @@ type Expert struct {
 	chatMessageHandler     func(TotalMessage, string)
 	intentMatch            *IntentMatchManager //意图识别管理器
 	rnnIntent              *RNNIntentManager   //RNN意图管理器
-	UserMessageInChan      chan *TotalMessage  //用户消息输入通道
-	ProgramMessageInChan   chan *TotalMessage  //程序库消息输入通道
-	ChatMessageInChan      chan *TotalMessage  //多轮对话消息输入通道
+	userMessageInChan      chan *TotalMessage  //用户消息输入通道
+	programMessageInChan   chan *TotalMessage  //程序库消息输入通道
+	chatMessageInChan      chan *TotalMessage  //多轮对话消息输入通道
 	dialogs                map[string]*DialogInfo
 	dialogsMutex           *sync.RWMutex
 	lastSavedDialogInfoMd5 string // 上次保存的dialog 信息的md5 值
@@ -67,9 +67,9 @@ func NewExpert() *Expert {
 		rnnIntentPath:        defalutRnnModelPath,
 		dataFilePath:         defalutDataPath,
 		onnxLibPath:          "",
-		UserMessageInChan:    make(chan *TotalMessage, 1000),
-		ProgramMessageInChan: make(chan *TotalMessage, 1000),
-		ChatMessageInChan:    make(chan *TotalMessage, 1000),
+		userMessageInChan:    make(chan *TotalMessage, 1000),
+		programMessageInChan: make(chan *TotalMessage, 1000),
+		chatMessageInChan:    make(chan *TotalMessage, 1000),
 		saveInterval:         10 * time.Minute,
 		dialogs:              make(map[string]*DialogInfo),
 		dialogsMutex:         &sync.RWMutex{},
@@ -272,8 +272,8 @@ func (t *Expert) HandleUserRequestMessage(message any) {
 	default:
 		logger.Error("不支持的消息结构")
 	}
-	if t.UserMessageInChan != nil && messagePointer != nil && err == nil {
-		t.UserMessageInChan <- messagePointer
+	if t.userMessageInChan != nil && messagePointer != nil && err == nil {
+		t.userMessageInChan <- messagePointer
 	}
 }
 
@@ -320,8 +320,8 @@ func (t *Expert) HandleProgramRequestMessage(message any) {
 	default:
 		logger.Error("不支持的消息结构")
 	}
-	if t.ProgramMessageInChan != nil && messagePointer != nil && err == nil {
-		t.ProgramMessageInChan <- messagePointer
+	if t.programMessageInChan != nil && messagePointer != nil && err == nil {
+		t.programMessageInChan <- messagePointer
 	}
 }
 
@@ -368,8 +368,8 @@ func (t *Expert) HandleChatRequestMessage(message any) {
 	default:
 		logger.Error("不支持的消息结构")
 	}
-	if t.ChatMessageInChan != nil && messagePointer != nil && err == nil {
-		t.ChatMessageInChan <- messagePointer
+	if t.chatMessageInChan != nil && messagePointer != nil && err == nil {
+		t.chatMessageInChan <- messagePointer
 	}
 }
 
@@ -412,11 +412,11 @@ func (t *Expert) Run() {
 
 	for {
 		select {
-		case userMsg := <-t.UserMessageInChan:
+		case userMsg := <-t.userMessageInChan:
 			go t.handleFromUserMessage(userMsg)
-		case programMsg := <-t.ProgramMessageInChan:
+		case programMsg := <-t.programMessageInChan:
 			go t.handleFromProgramMessage(programMsg)
-		case chatMsg := <-t.ChatMessageInChan:
+		case chatMsg := <-t.chatMessageInChan:
 			go t.handleFromChatMessage(chatMsg)
 		}
 	}

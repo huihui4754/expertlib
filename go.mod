@@ -9,6 +9,12 @@ require (
 )
 
 require (
+	github.com/r3labs/sse/v2 v2.10.0 // indirect
+	golang.org/x/net v0.43.0 // indirect
+	gopkg.in/cenkalti/backoff.v1 v1.1.0 // indirect
+)
+
+require (
 	github.com/dlclark/regexp2 v1.10.0 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/huihui4754/loglevel v1.0.1
