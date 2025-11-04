@@ -1,6 +1,8 @@
 package experts
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"os"
 	"sync"
@@ -25,7 +27,7 @@ type IntentMatchManager struct {
 	allIntentMatcher  map[string]func() IntentMatchInter
 	IntentCache       map[string]string // IntentCache存储用户输入到意图名称的映射。
 	cacheMutex        *sync.RWMutex     // cacheMutex保护IntentCache免受并发访问。
-	lastSavedCache    string
+	lastSavedCacheMd5 string            // 保存md5 上次保存的md5 值
 	vaildMinScore     float64
 	messageformatting func(string) string //消息格式化函数，将消息送入意图识别时可以用此函数去处理文字字符串以便更好识别
 }
@@ -94,7 +96,8 @@ func (i *IntentMatchManager) LoadIntentCache() {
 	// 存储数据的初始状态以避免不必要的保存
 	initialData, err := json.MarshalIndent(i.IntentCache, "", "  ")
 	if err == nil {
-		i.lastSavedCache = string(initialData)
+		hash := md5.Sum(initialData)
+		i.lastSavedCacheMd5 = hex.EncodeToString(hash[:])
 	}
 
 	logger.Infof("Loaded %d Intent cache records.", len(i.IntentCache))
@@ -105,14 +108,16 @@ func (i *IntentMatchManager) SaveIntentCache() {
 	i.cacheMutex.RLock()
 	defer i.cacheMutex.RUnlock()
 
-	// Only write to file if the content has actually changed.
 	currentData, err := json.MarshalIndent(i.IntentCache, "", "  ")
 	if err != nil {
 		logger.Errorf("Failed to marshal Intent cache data for saving: %v", err)
 		return
 	}
 
-	if string(currentData) == i.lastSavedCache {
+	hash := md5.Sum(currentData)
+	currentHash := hex.EncodeToString(hash[:])
+
+	if currentHash == i.lastSavedCacheMd5 {
 		return // No changes to save
 	}
 
@@ -120,7 +125,7 @@ func (i *IntentMatchManager) SaveIntentCache() {
 		logger.Errorf("Failed to write Intent cache file: %v", err)
 	} else {
 		logger.Info("Saved Intent cache successfully.")
-		i.lastSavedCache = string(currentData)
+		i.lastSavedCacheMd5 = currentHash
 	}
 }
 

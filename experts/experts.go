@@ -1,6 +1,8 @@
 package experts
 
 import (
+	"crypto/md5"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -27,25 +29,25 @@ type DialogInfo = types.DialogInfo
 
 // Expert结构体保存expert实例的配置和处理程序。
 type Expert struct {
-	dataFilePath          string
-	rnnIntentPath         string
-	onnxLibPath           string
-	commandFirst          bool
-	userMessageHandler    func(TotalMessage, string)
-	programMessageHandler func(TotalMessage, string)
-	chatMessageHandler    func(TotalMessage, string)
-	intentMatch           *IntentMatchManager //意图识别管理器
-	rnnIntent             *RNNIntentManager   //RNN意图管理器
-	UserMessageInChan     chan *TotalMessage  //用户消息输入通道
-	ProgramMessageInChan  chan *TotalMessage  //程序库消息输入通道
-	ChatMessageInChan     chan *TotalMessage  //多轮对话消息输入通道
-	dialogs               map[string]*DialogInfo
-	dialogsMutex          *sync.RWMutex
-	lastSavedDialogInfo   string // 上次保存的dialog 信息的字符串表示
-	saveDialogInfoFunc    func(map[string]*DialogInfo)
-	loadDialogInfoFunc    func() map[string]*DialogInfo
-	saveInterval          time.Duration // 定时保存dialog 和 意图识别间隔时间
-	chatSaveHistoryLimit  int           // 多轮对话保存的历史消息条数限制
+	dataFilePath           string
+	rnnIntentPath          string
+	onnxLibPath            string
+	commandFirst           bool
+	userMessageHandler     func(TotalMessage, string)
+	programMessageHandler  func(TotalMessage, string)
+	chatMessageHandler     func(TotalMessage, string)
+	intentMatch            *IntentMatchManager //意图识别管理器
+	rnnIntent              *RNNIntentManager   //RNN意图管理器
+	UserMessageInChan      chan *TotalMessage  //用户消息输入通道
+	ProgramMessageInChan   chan *TotalMessage  //程序库消息输入通道
+	ChatMessageInChan      chan *TotalMessage  //多轮对话消息输入通道
+	dialogs                map[string]*DialogInfo
+	dialogsMutex           *sync.RWMutex
+	lastSavedDialogInfoMd5 string // 上次保存的dialog 信息的md5 值
+	saveDialogInfoFunc     func(map[string]*DialogInfo)
+	loadDialogInfoFunc     func() map[string]*DialogInfo
+	saveInterval           time.Duration // 定时保存dialog 和 意图识别间隔时间
+	chatSaveHistoryLimit   int           // 多轮对话保存的历史消息条数限制
 }
 
 // NewExpert会建立Expert的对象
@@ -179,7 +181,8 @@ func (t *Expert) loadDialogInfo() {
 		// Store the initial state of the data
 		initialData, err := json.MarshalIndent(t.dialogs, "", "  ")
 		if err == nil {
-			t.lastSavedDialogInfo = string(initialData)
+			hash := md5.Sum(initialData)
+			t.lastSavedDialogInfoMd5 = hex.EncodeToString(hash[:])
 		}
 
 		logger.Infof("Loaded %d user info records.", len(t.dialogs))
@@ -205,7 +208,10 @@ func (t *Expert) saveDialogInfo() {
 		return
 	}
 
-	if string(data) == t.lastSavedDialogInfo {
+	hash := md5.Sum(data)
+	currentHash := hex.EncodeToString(hash[:])
+
+	if currentHash == t.lastSavedDialogInfoMd5 {
 		return // No changes to save
 	}
 
@@ -213,7 +219,7 @@ func (t *Expert) saveDialogInfo() {
 		logger.Errorf("Failed to write user info file: %v", err)
 	} else {
 		logger.Info("Save  user info successfully.")
-		t.lastSavedDialogInfo = string(data)
+		t.lastSavedDialogInfoMd5 = currentHash
 	}
 }
 
