@@ -3,7 +3,8 @@ package chat
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
+	"sync"
 
 	"github.com/huihui4754/expertlib/types"
 	"github.com/openai/openai-go/v3"
@@ -12,11 +13,12 @@ import (
 
 var (
 	openaiClient openai.Client
+	initOnce     sync.Once
 )
 
 type ChatAIMessage = types.ChatAIMessage
 
-type LocalLLM struct {
+type OpenaiChatLLM struct {
 	DialogID            string                                   `json:"dialog_id"`
 	AIURL               string                                   `json:"-"`
 	AIModel             string                                   `json:"-"`
@@ -24,12 +26,17 @@ type LocalLLM struct {
 	MessagesLenLimit    int                                      `json:"-"`
 	Messages            []openai.ChatCompletionMessageParamUnion `json:"messages"` // 不包括系统提示词
 	LastSavedContentMd5 string                                   `json:"-"`
+	callFuctionCall     func(call *FunctionCall) (string, error) `json:"-"`
 	Relpying            bool                                     `json:"-"`
 }
 
-func (l *LocalLLM) Chat(question string) string {
-	if openaiClient == nil {
-		openaiClient = openai.NewClient(option.WithBaseURL("http://192.168.101.130:8011/v1"), option.WithDebugLog(logger.Logger))
+func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolUnionParam) (string, error) {
+	initOnce.Do(func() {
+		openaiClient = openai.NewClient(option.WithBaseURL(l.AIURL))
+	})
+
+	if l.Relpying {
+		return "当前dialog llm 还未回复完", errors.New("当前dialog llm 还未回复完")
 	}
 
 	ctx := context.Background()
@@ -37,69 +44,72 @@ func (l *LocalLLM) Chat(question string) string {
 	l.Messages = append(l.Messages, openai.UserMessage(question))
 
 	for len(l.Messages) > l.MessagesLenLimit {
-		l.Messages = append(l.Messages[:0], l.Messages[2:]...) //保留系统提示词，删除最老的对话记录
+		l.Messages = l.Messages[len(l.Messages)-l.MessagesLenLimit:]
 	}
 
+	messageWithSystem := make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2)
+	messageWithSystem = append(messageWithSystem, openai.SystemMessage(l.SystemPrompt))
+
+	messageWithSystem = append(messageWithSystem, l.Messages...)
+
 	params := openai.ChatCompletionNewParams{
-		Messages: l.Messages,
-		Tools: []openai.ChatCompletionToolUnionParam{
-			openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
-				Name:        "get_weather",
-				Description: openai.String("Get weather at the given location"),
-				Parameters: openai.FunctionParameters{
-					"type": "object",
-					"properties": map[string]any{
-						"location": map[string]string{
-							"type": "string",
-						},
-					},
-					"required": []string{"location"},
-				},
-			}),
-		},
-		Seed:  openai.Int(0),
-		Model: "Qwen3-8B-AWQ",
+		Messages: messageWithSystem,
+		Tools:    tools,
+		// Seed:     openai.Int(0),
+		Model: l.AIModel,
 	}
 
 	// Make initial chat completion request
-	completion, err := client.Chat.Completions.New(ctx, params)
+	completion, err := openaiClient.Chat.Completions.New(ctx, params)
 	if err != nil {
-		panic(err)
+		logger.Errorf("chat with openaiClient err: %v", err)
+		return "请求大模型失败", err
 	}
 
 	toolCalls := completion.Choices[0].Message.ToolCalls
 
-	// Return early if there are no tool calls
-	// if len(toolCalls) == 0 {
-	// 	fmt.Printf("No function call")
-	// 	return
-	// }
+	if len(toolCalls) == 0 {
+		l.Messages = append(l.Messages, openai.AssistantMessage(completion.Choices[0].Message.Content))
+		for len(l.Messages) > l.MessagesLenLimit {
+			l.Messages = l.Messages[len(l.Messages)-l.MessagesLenLimit:]
+		}
+		return completion.Choices[0].Message.Content, nil
+	}
 
 	// If there is a was a function call, continue the conversation
 	params.Messages = append(params.Messages, completion.Choices[0].Message.ToParam())
 	for _, toolCall := range toolCalls {
-		if toolCall.Function.Name == "get_weather" {
-			// Extract the location from the function call arguments
-			var args map[string]interface{}
-			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
+		var args map[string]interface{}
+		err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
+		if err != nil {
+			logger.Errorf("get tool arguments err: %v", err)
+			continue
+		}
+		if l.callFuctionCall != nil {
+			result, err := l.callFuctionCall(&FunctionCall{
+				Name:      toolCall.Function.Name,
+				Arguments: args,
+			})
 			if err != nil {
-				panic(err)
+				logger.Errorf("call tool err: %v", err)
+				continue
 			}
-			location := args["location"].(string)
-
-			// Simulate getting weather data
-			weatherData := getWeather(location)
-
-			// Print the weather data
-			fmt.Printf("Weather in %s: %s\n", location, weatherData)
-
-			params.Messages = append(params.Messages, openai.ToolMessage(weatherData, toolCall.ID))
+			params.Messages = append(params.Messages, openai.ToolMessage(result, toolCall.ID))
 		}
 	}
 
-	completion, err = client.Chat.Completions.New(ctx, params)
+	completion, err = openaiClient.Chat.Completions.New(ctx, params)
 	if err != nil {
-		panic(err)
+		logger.Errorf("chat with openaiClient err: %v", err)
+		return "请求大模型失败", err
 	}
-	println(completion.Choices[0].Message.Content)
+	l.Messages = append(l.Messages, openai.AssistantMessage(completion.Choices[0].Message.Content))
+	for len(l.Messages) > l.MessagesLenLimit {
+		l.Messages = l.Messages[len(l.Messages)-l.MessagesLenLimit:]
+	}
+	return completion.Choices[0].Message.Content, nil
+}
+
+func (l *OpenaiChatLLM) SetCallFuncHandler(callFuncHandler func(call *FunctionCall) (string, error)) {
+	l.callFuctionCall = callFuncHandler
 }

@@ -2,12 +2,15 @@ package chat
 
 import (
 	"encoding/json"
+	"log"
 
 	"github.com/huihui4754/expertlib/types"
 	"github.com/huihui4754/loglevel"
+	"github.com/openai/openai-go/v3"
 )
 
 type TotalMessage = types.TotalMessage
+type Attachment = types.Attachment
 
 var (
 	logger = loglevel.NewLog(loglevel.Debug)
@@ -21,12 +24,12 @@ type Chat struct {
 	dataFilePath           string
 	llmUrl                 string
 	modelName              string
-	requestLLMHeaders      string
 	systemPrompt           string
-	FunctionCalls          []Funcall
+	llmChatManager         LLMChatWithFunCallManager
 	expertMessageHandler   func(TotalMessage, string)
-	expertMessageInChan    chan *TotalMessage //专家消息输入通道
+	expertMessageInChan    chan *TotalMessage //消息输入通道
 	toExpertMessageOutChan chan *TotalMessage
+	// FunctionCalls          []Funcall
 }
 
 type Funcall struct {
@@ -34,34 +37,39 @@ type Funcall struct {
 }
 
 func NewChat() *Chat {
-	return &Chat{}
+	return &Chat{
+		dataFilePath:           "",
+		llmUrl:                 "",
+		modelName:              "",
+		systemPrompt:           "",
+		expertMessageInChan:    make(chan *TotalMessage),
+		toExpertMessageOutChan: make(chan *TotalMessage),
+		llmChatManager:         LLMChatWithFunCallManager{},
+	}
 }
 
 func (c *Chat) SetDataFilePath(path string) {
 	c.dataFilePath = path
+	c.llmChatManager.DataPath = path
 	logger.Info("dataFilePath set to:", path)
 }
 
 func (c *Chat) SetLLMUrl(url string) {
 	c.llmUrl = url
+	c.llmChatManager.AIURL = url
 	logger.Info("llmUrl set to:", url)
 }
 
 func (c *Chat) SetModelName(model string) {
 	c.modelName = model
-}
-
-func (c *Chat) SetRequestLLMHeaders(headers string) {
-	c.requestLLMHeaders = headers
+	c.llmChatManager.AIModel = model
+	logger.Info("AIModel set to:", model)
 }
 
 func (c *Chat) SetSystemPrompt(prompt string) {
-
-}
-
-func (c *Chat) SetFunctionCall(functions []Funcall) {
-	c.FunctionCalls = functions
-	logger.Info("FunctionCall set")
+	c.systemPrompt = prompt
+	c.llmChatManager.SystemPrompt = prompt
+	logger.Info("SystemPrompt set to:", prompt)
 }
 
 func (c *Chat) HandleExpertRequestMessage(message any) {
@@ -105,8 +113,8 @@ func (c *Chat) HandleExpertRequestMessage(message any) {
 	}
 }
 
-func (c *Chat) SetCallFunctionHandler() {
-
+func (c *Chat) SetCallFunctionHandler(callFuncHandler func(call *FunctionCall) (string, error)) {
+	c.llmChatManager.SetCallFuncHandler(callFuncHandler)
 }
 
 func (c *Chat) SetToExpertMessageHandler(handler func(TotalMessage, string)) {
@@ -115,16 +123,62 @@ func (c *Chat) SetToExpertMessageHandler(handler func(TotalMessage, string)) {
 }
 
 func (c *Chat) Run() {
+
 	// Start the chat instance here
+	if c.llmUrl == "" || c.modelName == "" {
+		panic("你必须在执行 Run 前设置 大模型链接和模型名称")
+	}
+
+	if c.dataFilePath != "" {
+		c.llmChatManager.PeriodicSave()
+	}
+
 	logger.Info("Chat instance running")
 
 	for {
 		select {
 		case expertMsg := <-c.expertMessageInChan:
-			go c.handleFromUserMessage(userMsg)
+			go c.handleFromExpertMessage(expertMsg)
 		case toExpertMsg := <-c.toExpertMessageOutChan:
-			go c.handleFromProgramMessage(programMsg)
+			go func() {
+				toExpertMessage := *toExpertMsg
+				msg, err := json.Marshal(toExpertMessage)
+				if err != nil {
+					logger.Error("Failed to marshal chat message: %v", err)
+				}
+				c.expertMessageHandler(toExpertMessage, string(msg))
+			}()
 		}
 	}
 
+}
+
+func (c *Chat) handleFromExpertMessage(message *TotalMessage) {
+
+	switch message.EventType {
+	case 1001:
+		logger.Debug("专家发送消息")
+		res := c.llmChatManager.ChatLLM(message)
+		if res != nil {
+			c.toExpertMessageOutChan <- res
+		}
+
+	case 1002:
+		logger.Debug("专家终止对话")
+
+	default:
+		log.Printf("收到未知事件类型: %d", message.EventType)
+	}
+
+}
+
+func (c *Chat) SetModelContextFunctionTools(callTools []ModelContextFunctionTool) {
+	c.llmChatManager.SetTools(callTools)
+	logger.Info("callTools set")
+}
+
+// 和上面 SetModelContextFunctionTools 二选一 使用即可
+func (c *Chat) SetOpenaiChatCompletionToolUnionParam(openaiTool []openai.ChatCompletionToolUnionParam) {
+	c.llmChatManager.SetOpenaiChatCompletionToolUnionParam(openaiTool)
+	logger.Info("openaiTool set")
 }
