@@ -76,3 +76,11 @@ type ExpertToChatMessage struct {
 		History     []string     `json:"history,omitempty"`
 	} `json:"messages"`
 }
+
+type HttpInstruction struct {
+	EventType int    `json:"event_type"` //  固定为 3000 代表特殊指令
+	DialogID  string `json:"dialog_id"`
+	Action    string `json:"action"`
+	Key       string `json:"key"`
+	Value     string `json:"value,omitempty"`
+}

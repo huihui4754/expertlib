@@ -9,6 +9,8 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+
+	"github.com/huihui4754/expertlib/types"
 )
 
 const (
@@ -16,8 +18,8 @@ const (
 )
 
 type StorageManager struct {
-	data       map[string]map[string]interface{}
-	mu         sync.RWMutex
+	data        map[string]map[string]interface{}
+	mu          sync.RWMutex
 	dataDirPath string
 }
 
@@ -52,7 +54,7 @@ func memoryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveMemory(w http.ResponseWriter, r *http.Request) {
-	var req SpecialInstruction
+	var req types.HttpInstruction
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
