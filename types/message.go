@@ -1,5 +1,14 @@
 package types
 
+const (
+	EventUserMessage        = 1001
+	EventClientTerminate    = 1002
+	EventServerMessage      = 2001
+	EventToolFinish         = 2002
+	EventToolNotSupport     = 2003
+	EventSpecialInstruction = 3000
+)
+
 type PossibleIntentions struct {
 	IntentName        string  `json:"intent_name"`
 	IntentDescription string  `json:"intent_description"`

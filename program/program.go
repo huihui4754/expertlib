@@ -3,7 +3,6 @@ package programs
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os/user"
 	"path/filepath"
 
@@ -27,6 +26,7 @@ type program struct {
 	expertMessageHandler   func(any, string)
 	expertMessageInChan    chan *TotalMessage
 	toExpertMessageOutChan chan *TotalMessage
+	sessionManager         *SessionManager
 }
 
 func NewTool() *program {
@@ -36,20 +36,29 @@ func NewTool() *program {
 	if err != nil {
 		fmt.Printf("获取用户信息失败：%v\n", err)
 	} else {
-		defalutProgramPath = filepath.Join(currentUser.HomeDir, "expert", "program")
-		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "js")
+		defalutProgramPath = filepath.Join(currentUser.HomeDir, "expert", "js")
+		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "program")
 	}
+
+	// Initialize storage with the data file path
+	InitStorage(defalutDataPath)
+
+	toExpertChan := make(chan *TotalMessage)
+
 	return &program{
 		dataFilePath:           defalutDataPath,
 		programPath:            defalutProgramPath,
 		expertMessageInChan:    make(chan *TotalMessage),
-		toExpertMessageOutChan: make(chan *TotalMessage),
+		toExpertMessageOutChan: toExpertChan,
+		sessionManager:         NewSessionManager(toExpertChan),
 	}
 }
 
 func (p *program) SetDataFilePath(path string) {
 	p.dataFilePath = path
 	logger.Info("Data file path set to:", path)
+	// Update storage manager with new path if it's already initialized
+	storage.dataDirPath = path
 }
 
 func (p *program) SetProgramPath(path string) {
@@ -69,7 +78,7 @@ func (p *program) HandleExpertRequestMessage(message any) {
 	case *TotalMessage:
 		if v == nil {
 			logger.Error("*TotalMessage 为 nil")
-			break
+			return
 		}
 		// 复制指针指向的值，取新地址（避免外部修改影响）
 		msg := *v // 解引用并复制
@@ -107,33 +116,76 @@ func (p *program) SetToExpertMessageHandler(handler func(any, string)) {
 func (p *program) handleFromExpertMessage(message *TotalMessage) {
 
 	switch message.EventType {
-	case 1001:
-		//  todo 这里需要去启动相应的程序库来对话
+	case types.EventUserMessage: // 1001
+		logger.Debugf("Received user message for dialog: %s", message.DialogID)
+		if message.Intention == "" {
+			return
+		}
+		session, err := p.sessionManager.GetOrCreateSession(message.DialogID, message.UserId, message.Intention, p.programPath)
+		if err != nil {
+			logger.Errorf("Failed to get or create session for dialog %s: %v", message.DialogID, err)
+			// 向专家发回ToolNotSupport消息
+			p.sendToolNotSupported(message)
+			return
+		}
+		if err := session.Send(message); err != nil {
+			logger.Errorf("Failed to send message to nodejs process for dialog %s: %v", message.DialogID, err)
+			// 处理通信错误，可能关闭会话并通知专家
+			p.sessionManager.CloseSession(message.DialogID, types.EventToolFinish)
+			p.sendProgramEnd(message)
+		}
 
-	case 1002:
-		logger.Debug("专家终止对话")
+	case types.EventClientTerminate: // 1002
+		logger.Debugf("Received client terminate for dialog: %s", message.DialogID)
+		p.sessionManager.CloseSession(message.DialogID, types.EventClientTerminate)
 
 	default:
-		log.Printf("收到未知事件类型: %d", message.EventType)
+		logger.Warnf("收到未知事件类型: %d", message.EventType)
 	}
 
+}
+
+func (p *program) sendToolNotSupported(originalMsg *TotalMessage) {
+	// Create a ToolNotSupport message and send it back
+	notSupportMsg := &TotalMessage{
+		EventType: types.EventToolNotSupport,
+		DialogID:  originalMsg.DialogID,
+		UserId:    originalMsg.UserId,
+	}
+	p.toExpertMessageOutChan <- notSupportMsg
+}
+
+func (p *program) sendProgramEnd(originalMsg *TotalMessage) {
+	// Create a ToolNotSupport message and send it back
+	endMsg := &TotalMessage{
+		EventType: types.EventToolFinish,
+		DialogID:  originalMsg.DialogID,
+		UserId:    originalMsg.UserId,
+	}
+	p.toExpertMessageOutChan <- endMsg
 }
 
 func (p *program) Run() {
 
 	logger.Info("Program instance running")
+	go RunHTTPServer() // Start the HTTP server for storage
+
 	for {
 		select {
 		case expertMsg := <-p.expertMessageInChan:
 			go p.handleFromExpertMessage(expertMsg)
 		case toExpertMsg := <-p.toExpertMessageOutChan:
 			go func() {
-				toExpertMessage := *toExpertMsg
-				msg, err := json.Marshal(toExpertMessage)
+				// The message from session manager is already a complete TotalMessage
+				// We just need to marshal it for the handler
+				msgBytes, err := json.Marshal(toExpertMsg)
 				if err != nil {
-					logger.Error("Failed to marshal chat message: %v", err)
+					logger.Errorf("Failed to marshal outgoing message: %v", err)
+					return
 				}
-				p.expertMessageHandler(toExpertMessage, string(msg))
+				if p.expertMessageHandler != nil {
+					p.expertMessageHandler(*toExpertMsg, string(msgBytes))
+				}
 			}()
 		}
 	}
