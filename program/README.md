@@ -12,7 +12,7 @@ NewTool() *Tool  // 获取program 实例
 
 (t *Tool) Run() // 启动程序库实例
 
-(t *Tool) GetProgramName() []string // 获取程序库所有的程序的名称
-(t *Tool) UpdateProgram()  // 从js path 重新加载程序库 
+(t *Tool) GetProgramNames() []string // 获取程序库所有的程序的名称
+(t *Tool) UpdatePrograms()  // 从js path 重新加载程序库 
 
 ```

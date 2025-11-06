@@ -379,7 +379,7 @@ func (t *Expert) SetToChatMessageHandler(handler func(TotalMessage, string)) {
 }
 
 func (t *Expert) getRNNIntentMangerFromFile() {
-	if t.rnnIntentPath != "" || t.onnxLibPath != "" { // 目前只支持从文件系统中加载指定的rnn 意图识别器，后续可拓展，可以使用接口方便的在代码中加载意图识别器
+	if t.rnnIntentPath != "" || t.onnxLibPath != "" { // 目前只支持从文件系统中加载指定的rnn 意图识别器，后续可拓展其他神经网络。还可以使用接口方便的在代码中设置意图识别器
 		// 加载所有rnn 意图识别并注册到意图匹配管理器
 		logger.Info("Initializing RNN Intent Manager...")
 		rnnManager := NewRNNIntentManager()

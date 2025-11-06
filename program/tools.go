@@ -1,6 +1,10 @@
 package tools
 
 import (
+	"fmt"
+	"os/user"
+	"path/filepath"
+
 	"github.com/huihui4754/loglevel"
 )
 
@@ -19,7 +23,19 @@ type Tool struct {
 }
 
 func NewTool() *Tool {
-	return &Tool{}
+	defalutProgramPath := ""
+	defalutDataPath := ""
+	currentUser, err := user.Current() // todo 后续支持从配置文件读取配置
+	if err != nil {
+		fmt.Printf("获取用户信息失败：%v\n", err)
+	} else {
+		defalutProgramPath = filepath.Join(currentUser.HomeDir, "expert", "program")
+		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "js")
+	}
+	return &Tool{
+		dataFilePath: defalutDataPath,
+		programPath:  defalutProgramPath,
+	}
 }
 
 func (t *Tool) SetDataFilePath(path string) {
@@ -57,13 +73,13 @@ func (t *Tool) Run() {
 	logger.Info("Tool instance running")
 }
 
-func (t *Tool) GetProgramName() []string {
+func (t *Tool) GetProgramNames() []string {
 	logger.Debug("Getting all program names")
 	// Placeholder for actual logic
 	return []string{"program1", "program2"}
 }
 
-func (t *Tool) UpdateProgram() {
+func (t *Tool) UpdatePrograms() {
 	logger.Info("Updating program")
 	// Placeholder for actual logic
 }
