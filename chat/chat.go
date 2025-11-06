@@ -2,7 +2,10 @@ package chat
 
 import (
 	"encoding/json"
+	"fmt"
 	"log"
+	"os/user"
+	"path/filepath"
 	"time"
 
 	"github.com/huihui4754/expertlib/types"
@@ -38,8 +41,15 @@ type Funcall struct {
 }
 
 func NewChat() *Chat {
+	defalutDataPath := ""
+	currentUser, err := user.Current() // todo 后续支持从配置文件读取配置
+	if err != nil {
+		fmt.Printf("获取用户信息失败：%v\n", err)
+	} else {
+		defalutDataPath = filepath.Join(currentUser.HomeDir, "expert", "chat")
+	}
 	return &Chat{
-		dataFilePath:           "",
+		dataFilePath:           defalutDataPath,
 		llmUrl:                 "",
 		modelName:              "",
 		systemPrompt:           "",
@@ -69,6 +79,7 @@ func (c *Chat) SetModelName(model string) {
 	logger.Info("AIModel set to:", model)
 }
 
+// 设置多轮对话的个性化提示词，不可设置回复内容格式，否者会无法回复。
 func (c *Chat) SetSystemPrompt(prompt string) {
 	c.systemPrompt = prompt
 	c.llmChatManager.SystemPrompt = prompt
