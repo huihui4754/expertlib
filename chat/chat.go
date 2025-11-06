@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/json"
 	"log"
+	"time"
 
 	"github.com/huihui4754/expertlib/types"
 	"github.com/huihui4754/loglevel"
@@ -44,7 +45,9 @@ func NewChat() *Chat {
 		systemPrompt:           "",
 		expertMessageInChan:    make(chan *TotalMessage),
 		toExpertMessageOutChan: make(chan *TotalMessage),
-		llmChatManager:         LLMChatWithFunCallManager{},
+		llmChatManager: LLMChatWithFunCallManager{
+			SaveIntervalTime: 20 * time.Minute,
+		},
 	}
 }
 
