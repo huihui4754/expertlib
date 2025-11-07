@@ -6,6 +6,7 @@ import (
 	"log"
 	"os/user"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/huihui4754/expertlib/types"
@@ -57,6 +58,7 @@ func NewChat() *Chat {
 		toExpertMessageOutChan: make(chan *TotalMessage),
 		llmChatManager: LLMChatWithFunCallManager{
 			SaveIntervalTime: 20 * time.Minute,
+			llmsMutex:        &sync.Mutex{},
 		},
 	}
 }
