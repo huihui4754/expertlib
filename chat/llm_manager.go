@@ -113,6 +113,7 @@ func (l *LLMChatWithFunCallManager) getLLMChatFormCache(dialogID string) *Openai
 				llm.AIURL = l.AIURL
 				llm.AIModel = l.AIModel
 				llm.SystemPrompt = l.SystemPrompt + systemChatPrompt
+				llm.MessagesLenLimit = messagesLenLimit
 
 				l.llmsMutex.Lock()
 				l.LLMChats[dialogID] = &llm

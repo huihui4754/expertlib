@@ -30,6 +30,14 @@ type OpenaiChatLLM struct {
 	Relpying            bool                                     `json:"-"`
 }
 
+func (l *OpenaiChatLLM) deleteOldMessage() {
+	if len(l.Messages) > l.MessagesLenLimit {
+		for len(l.Messages) > l.MessagesLenLimit {
+			l.Messages = l.Messages[len(l.Messages)-l.MessagesLenLimit:]
+		}
+	}
+}
+
 func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolUnionParam) (string, error) {
 	initOnce.Do(func() {
 		openaiClient = openai.NewClient(option.WithBaseURL(l.AIURL))
@@ -43,9 +51,9 @@ func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolU
 
 	l.Messages = append(l.Messages, openai.UserMessage(question))
 
-	for len(l.Messages) > l.MessagesLenLimit {
-		l.Messages = l.Messages[len(l.Messages)-l.MessagesLenLimit:]
-	}
+	logger.Debugf("messages :%v", l.Messages)
+	l.deleteOldMessage()
+	logger.Debugf("messages :%v", l.Messages)
 
 	messageWithSystem := make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2)
 	messageWithSystem = append(messageWithSystem, openai.SystemMessage(l.SystemPrompt))

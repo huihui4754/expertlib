@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"regexp"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -21,7 +22,7 @@ var (
 	}
 	logger       = loglevel.NewLog(loglevel.Debug)
 	serverPrefix = "/api"
-	listenAddr   = "0.0.0.0:8084"
+	listenAddr   = "0.0.0.0:8085"
 )
 
 func handleWebSocket(expertx *experts.Expert, w http.ResponseWriter, r *http.Request) {
@@ -49,12 +50,73 @@ func handleWebSocket(expertx *experts.Expert, w http.ResponseWriter, r *http.Req
 	}()
 }
 
+type Attachment = types.Attachment
+
+type WorkDocExpertMatch struct {
+}
+
+func (w *WorkDocExpertMatch) GetIntentName() string {
+	return "embody_articles" // 注册的意图名称，和 对应的 nodejs 脚本名称要保持一致
+}
+
+func (w *WorkDocExpertMatch) GetIntentDesc() string {
+	return "能够收录一篇公开网文到个人文档"
+}
+
+// 定义匹配规则、置信度及澄清问题
+// 规则按优先级（置信度）从高到低排序
+var workDocIntentRules = []struct {
+	Rule      string
+	Certainty float64
+	Question  string // 用于低置信度匹配时的澄清问题
+}{
+	// --- 排除规则 (P = 0): 明确排除 ---
+	{Rule: `.*(不|别|无须|不用).*(收录|保存|添加|放入|收藏).*`, Certainty: 0},
+
+	// --- 高置信度 (P > 0.8): 明确指令 ---
+	{Rule: `.*收录.*`, Certainty: 0.95},
+	{Rule: `.*(保存|添加|放入|收藏)到.*(文档|个人文档).*`, Certainty: 0.85},
+}
+
+func (w *WorkDocExpertMatch) Matching(content string, attachments []Attachment) float64 {
+	for _, rule := range workDocIntentRules {
+		// 特殊规则：处理需要附件的场景
+		if rule.Certainty == 80 {
+			if len(attachments) == 0 {
+				continue // 如果没有附件，则跳过此规则
+			}
+		}
+
+		matched, _ := regexp.MatchString(rule.Rule, content)
+		if matched {
+			// 如果匹配到排除规则，立即返回0
+			if rule.Certainty == 0 {
+				return 0
+			}
+			// 如果匹配到低置信度规则，返回置信度和用于澄清的默认问题
+			if rule.Question != "" {
+				return rule.Certainty
+			}
+			// 否则，返回高或中置信度，以及一个空字符串
+			return rule.Certainty
+		}
+	}
+
+	return 0
+}
+
+func NewWorkDocExpertMatch() experts.IntentMatchInter {
+	return &WorkDocExpertMatch{}
+}
+
 func main() {
 	// 获取程序库实例
 	expertx := experts.NewExpert()
 	expertx.SetDataFilePath("/home/zhangsh/test/expertdata") // 设置数据卷路径
 	expertx.SetRNNIntentPath("/home/zhangsh/test/rnnmodel")  // 设置本地rnn 意图识别模型路径，
 	expertx.SetONNXLibPath("/home/zhangsh/test/libonnxruntime.so.1.22.0")
+
+	expertx.Register(NewWorkDocExpertMatch, "embody_articles")
 
 	expertx.SetToUserMessageHandler(func(_ types.TotalMessage, message string) {
 		// 处理程序库返回的消息
