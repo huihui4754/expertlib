@@ -87,11 +87,12 @@ func (l *LLMChatWithFunCallManager) SetOpenaiChatCompletionToolUnionParam(openai
 // func (l *LLMChatWithFunCallManager) newLLMChat(dialogID string) LLMChatWithFunCallInter {
 func (l *LLMChatWithFunCallManager) newLLMChat(dialogID string) *OpenaiChatLLM {
 	llmChat := &OpenaiChatLLM{
-		DialogID:     dialogID,
-		Messages:     make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2),
-		SystemPrompt: l.SystemPrompt + systemChatPrompt,
-		AIModel:      l.AIModel,
-		AIURL:        l.AIURL,
+		DialogID:         dialogID,
+		Messages:         make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2),
+		SystemPrompt:     l.SystemPrompt + systemChatPrompt,
+		AIModel:          l.AIModel,
+		AIURL:            l.AIURL,
+		MessagesLenLimit: messagesLenLimit,
 	}
 	if l.callFuncHandler != nil {
 		llmChat.SetCallFuncHandler(l.callFuncHandler)
