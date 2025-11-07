@@ -3,7 +3,6 @@ package programs
 import (
 	"encoding/json"
 	"fmt"
-	"logger"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,26 +20,26 @@ type HttpInstruction = types.HttpInstruction
 type StorageManager struct {
 	data        map[string]map[string]interface{}
 	mu          sync.RWMutex
-	dataDirPath string
+	DataDirPath string
 	Port        string
 }
 
 func NewStorage(dataDirPath string, port string) *StorageManager {
 	storage := &StorageManager{
 		data:        make(map[string]map[string]interface{}),
-		dataDirPath: dataDirPath,
+		DataDirPath: dataDirPath,
 		mu:          sync.RWMutex{},
 		Port:        port,
 	}
-	storage.dataDirPath = dataDirPath
-	if err := os.MkdirAll(dataDirPath, 0755); err != nil {
-		logger.Fatalf("Failed to create data directory: %v", err)
-		panic("无法创建存储目录")
-	}
+
 	return storage
 }
 
 func (s *StorageManager) RunHTTPServer() {
+	if err := os.MkdirAll(s.DataDirPath, 0755); err != nil {
+		logger.Fatalf("Failed to create data directory: %v", err)
+		panic("无法创建存储目录")
+	}
 	http.HandleFunc("/memory", s.memoryHandler)
 	logger.Printf("Starting HTTP server on port %s", Port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", Port), nil); err != nil {
@@ -79,7 +78,7 @@ func (s *StorageManager) saveMemory(w http.ResponseWriter, r *http.Request) {
 	}
 	s.data[req.DialogID][req.Key] = req.Value
 
-	if err := persistDialogData(req.DialogID); err != nil {
+	if err := s.persistDialogData(req.DialogID); err != nil {
 		http.Error(w, "Failed to save data", http.StatusInternalServerError)
 		logger.Printf("Error persisting data for dialog %s: %v", req.DialogID, err)
 		return
@@ -102,7 +101,7 @@ func (s *StorageManager) queryMemory(w http.ResponseWriter, r *http.Request) {
 
 	// Load data from disk if not in memory
 	if _, ok := s.data[dialogID]; !ok {
-		if err := loadDialogData(dialogID); err != nil {
+		if err := s.loadDialogData(dialogID); err != nil {
 			// It's not an error if the file doesn't exist yet
 			if !os.IsNotExist(err) {
 				logger.Printf("Error loading data for dialog %s: %v", dialogID, err)
@@ -130,7 +129,7 @@ func (s *StorageManager) queryMemory(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *StorageManager) persistDialogData(dialogID string) error {
-	filePath := filepath.Join(s.dataDirPath, fmt.Sprintf("%s.json", dialogID))
+	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
 	data, err := json.MarshalIndent(s.data[dialogID], "", "  ")
 	if err != nil {
 		return err
@@ -139,7 +138,7 @@ func (s *StorageManager) persistDialogData(dialogID string) error {
 }
 
 func (s *StorageManager) loadDialogData(dialogID string) error {
-	filePath := filepath.Join(s.dataDirPath, fmt.Sprintf("%s.json", dialogID))
+	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err

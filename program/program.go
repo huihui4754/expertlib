@@ -27,11 +27,14 @@ type program struct {
 	expertMessageInChan    chan *TotalMessage
 	toExpertMessageOutChan chan *TotalMessage
 	sessionManager         *SessionManager
+	dataStorage            *StorageManager
+	port                   string
 }
 
 func NewTool() *program {
 	defalutProgramPath := ""
 	defalutDataPath := ""
+	defalutPort := "8765"
 	currentUser, err := user.Current() // todo 后续支持从配置文件读取配置
 	if err != nil {
 		fmt.Printf("获取用户信息失败：%v\n", err)
@@ -41,7 +44,7 @@ func NewTool() *program {
 	}
 
 	// Initialize storage with the data file path
-	InitStorage(defalutDataPath)
+	dataStorage := NewStorage(defalutDataPath, defalutPort)
 
 	toExpertChan := make(chan *TotalMessage)
 
@@ -51,14 +54,16 @@ func NewTool() *program {
 		expertMessageInChan:    make(chan *TotalMessage),
 		toExpertMessageOutChan: toExpertChan,
 		sessionManager:         NewSessionManager(toExpertChan),
+		dataStorage:            dataStorage,
+		port:                   defalutPort,
 	}
 }
 
 func (p *program) SetDataFilePath(path string) {
 	p.dataFilePath = path
+	p.dataStorage.DataDirPath = path
 	logger.Info("Data file path set to:", path)
 	// Update storage manager with new path if it's already initialized
-	storage.dataDirPath = path
 }
 
 func (p *program) SetProgramPath(path string) {
@@ -121,7 +126,7 @@ func (p *program) handleFromExpertMessage(message *TotalMessage) {
 		if message.Intention == "" {
 			return
 		}
-		session, err := p.sessionManager.GetOrCreateSession(message.DialogID, message.UserId, message.Intention, p.programPath)
+		session, err := p.sessionManager.GetOrCreateSession(message.DialogID, message.UserId, message.Intention, p.port)
 		if err != nil {
 			logger.Errorf("Failed to get or create session for dialog %s: %v", message.DialogID, err)
 			// 向专家发回ToolNotSupport消息
@@ -168,7 +173,7 @@ func (p *program) sendProgramEnd(originalMsg *TotalMessage) {
 func (p *program) Run() {
 
 	logger.Info("Program instance running")
-	go RunHTTPServer() // Start the HTTP server for storage
+	go p.dataStorage.RunHTTPServer() // Start the HTTP server for storage
 
 	for {
 		select {
@@ -195,10 +200,5 @@ func (p *program) Run() {
 func (p *program) GetProgramNames() []string {
 	logger.Debug("Getting all program names")
 	// Placeholder for actual logic
-	return []string{"program1", "program2"}
-}
-
-func (p *program) UpdatePrograms() {
-	logger.Info("Updating program")
-	// Placeholder for actual logic
+	return p.sessionManager.GetAllProgramName()
 }

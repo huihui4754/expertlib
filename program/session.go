@@ -27,11 +27,11 @@ type Session struct {
 	DialogID          string
 	UserID            string
 	Cmd               *exec.Cmd
-	nodeJSProgramPath string
+	NodeJSProgramPath string
 	SocketPath        string
 	LastAccess        time.Time
 	timer             *time.Timer
-	dataPort          int
+	dataPort          string
 	mu                sync.Mutex
 	manager           *SessionManager
 	listener          net.Listener
@@ -41,6 +41,7 @@ type SessionManager struct {
 	sessions               map[string]*Session
 	mu                     sync.RWMutex
 	toExpertMessageOutChan chan *types.TotalMessage
+	ProgramBasePath        string
 }
 
 func NewSessionManager(toExpertMessageOutChan chan *types.TotalMessage) *SessionManager {
@@ -50,7 +51,7 @@ func NewSessionManager(toExpertMessageOutChan chan *types.TotalMessage) *Session
 	}
 }
 
-func (m *SessionManager) GetOrCreateSession(dialogID string, userID string, intent string, programBasePath string, httpPort int) (*Session, error) {
+func (m *SessionManager) GetOrCreateSession(dialogID string, userID string, intent string, httpPort string) (*Session, error) {
 	m.mu.RLock()
 	session, exists := m.sessions[dialogID]
 	m.mu.RUnlock()
@@ -66,16 +67,16 @@ func (m *SessionManager) GetOrCreateSession(dialogID string, userID string, inte
 		logger.Warnf("Could not remove old socket file %s: %v", socketPath, err)
 	}
 
-	nodeJSProgramPath := filepath.Join(programBasePath, intent, fmt.Sprintf("%s.js", intent))
+	NodeJSProgramPath := filepath.Join(m.ProgramBasePath, intent, fmt.Sprintf("%s.js", intent))
 
-	if _, err := os.Stat(nodeJSProgramPath); os.IsNotExist(err) {
-		return nil, fmt.Errorf("program for intent '%s' not found at %s", intent, nodeJSProgramPath)
+	if _, err := os.Stat(NodeJSProgramPath); os.IsNotExist(err) {
+		return nil, fmt.Errorf("program for intent '%s' not found at %s", intent, NodeJSProgramPath)
 	}
 
 	session = &Session{
 		DialogID:          dialogID,
 		UserID:            userID,
-		nodeJSProgramPath: nodeJSProgramPath,
+		NodeJSProgramPath: NodeJSProgramPath,
 		SocketPath:        socketPath,
 		LastAccess:        time.Now(),
 		dataPort:          httpPort,
@@ -109,6 +110,47 @@ func (m *SessionManager) CloseSession(dialogID string, reason int) {
 	m.mu.Unlock()
 
 	logger.Infof("Session %s closed.", dialogID)
+}
+
+func (m *SessionManager) GetAllProgramName() []string {
+	entries, err := os.ReadDir(m.ProgramBasePath)
+	if err != nil {
+		logger.Errorf("read program dir err %v", err)
+		return nil
+	}
+
+	var program []string
+	for _, entry := range entries {
+		// 判断是否为目录（且不是符号链接，若需包含符号链接目录可去掉 IsDir() 的参数）
+		if entry.IsDir() {
+			dirName := entry.Name()
+			dirPath := filepath.Join(m.ProgramBasePath, dirName)
+			_, err := os.ReadDir(dirPath)
+			if err != nil {
+				logger.Warnf("警告：无法读取目录 %q，原因：%v（已跳过）\n", dirPath, err)
+				continue
+			}
+
+			targetFilePath := filepath.Join(m.ProgramBasePath, dirName, dirName+".js")
+
+			// 检查该文件是否存在且是文件（不是目录）
+			fileInfo, err := os.Stat(targetFilePath)
+			if err != nil {
+				// 如果是"文件不存在"的错误，跳过；其他错误（如权限问题）打印警告
+				if !os.IsNotExist(err) {
+					logger.Warnf("警告：检查文件 %q 时出错：%v（已跳过）\n", targetFilePath, err)
+				}
+				continue
+			}
+
+			// 确认是文件（不是目录）
+			if !fileInfo.IsDir() {
+				program = append(program, dirName)
+			}
+		}
+	}
+
+	return program
 }
 
 func (s *Session) listenOnSocket() {
@@ -201,7 +243,7 @@ func (s *Session) close() {
 }
 
 func (s *Session) start() error {
-	cmd := exec.Command("node", s.nodeJSProgramPath, fmt.Sprintf("--socket=\"%s\" --port=%d ", s.SocketPath, s.dataPort))
+	cmd := exec.Command("node", s.NodeJSProgramPath, fmt.Sprintf("--socket=\"%s\" --port=%d ", s.SocketPath, s.dataPort))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
