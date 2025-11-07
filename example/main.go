@@ -20,7 +20,7 @@ var (
 	}
 	logger       = loglevel.NewLog(loglevel.Debug)
 	serverPrefix = "/api"
-	listenAddr   = ":8084"
+	listenAddr   = "0.0.0.0:8084"
 )
 
 func handleWebSocket(expertx *experts.Expert, w http.ResponseWriter, r *http.Request) {

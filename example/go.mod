@@ -5,7 +5,7 @@ go 1.24.6
 require github.com/gorilla/websocket v1.5.3
 
 require (
-	github.com/huihui4754/expertlib v1.0.1
+	github.com/huihui4754/expertlib v1.0.2
 	github.com/huihui4754/loglevel v1.0.3
 )
 

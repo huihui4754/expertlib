@@ -433,6 +433,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 			UserID:      message.UserId,
 			DialogID:    message.DialogID,
 			Program:     "",
+			RWMutex:     &sync.RWMutex{},
 			ChatHistory: make([]string, 0),
 		}
 		t.dialogsMutex.Lock()
