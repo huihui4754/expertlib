@@ -20,7 +20,7 @@ var (
 	}
 	logger       = loglevel.NewLog(loglevel.Debug)
 	serverPrefix = "/api"
-	listenAddr   = ":8080"
+	listenAddr   = ":8084"
 )
 
 func handleWebSocket(expertx *experts.Expert, w http.ResponseWriter, r *http.Request) {
@@ -75,7 +75,7 @@ func main() {
 	})
 
 	expertx.SetToProgramMessageHandler(func(_ types.TotalMessage, message string) {
-		funclibs.HandleExpertRequestMessageString(message)
+		funclibs.HandleExpertRequestMessage(message)
 	})
 
 	chatx := chat.NewChat()
@@ -100,6 +100,7 @@ func main() {
 	})
 
 	// listenAddr := fmt.Sprintf(":%d", config.Port) // 自由设置端口
+	logger.Debug("start websocket")
 	if err := http.ListenAndServe(listenAddr, nil); err != nil {
 		logger.Fatalf("Failed to start server: %v", err)
 	}

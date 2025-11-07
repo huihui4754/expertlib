@@ -3,6 +3,7 @@ package programs
 import (
 	"encoding/json"
 	"fmt"
+	"net/http"
 	"os/user"
 	"path/filepath"
 
@@ -173,7 +174,6 @@ func (p *program) sendProgramEnd(originalMsg *TotalMessage) {
 func (p *program) Run() {
 
 	logger.Info("Program instance running")
-	go p.dataStorage.RunHTTPServer() // Start the HTTP server for storage
 
 	for {
 		select {
@@ -201,4 +201,12 @@ func (p *program) GetProgramNames() []string {
 	logger.Debug("Getting all program names")
 	// Placeholder for actual logic
 	return p.sessionManager.GetAllProgramName()
+}
+
+func (p *program) GetStroageHandler() func(w http.ResponseWriter, r *http.Request) {
+	return p.dataStorage.GetStroageHandler()
+}
+
+func (p *program) RunStroageUserData() {
+	go p.dataStorage.RunHTTPServer() // Start the HTTP server for storage
 }

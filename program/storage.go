@@ -56,6 +56,11 @@ func (s *StorageManager) RunHTTPServer() {
 		logger.Fatalf("HTTP server failed: %v", err)
 	}
 }
+
+func (s *StorageManager) GetStroageHandler() func(w http.ResponseWriter, r *http.Request) {
+	return s.memoryHandler
+}
+
 func (s *StorageManager) periodicPersist() {
 	ticker := time.NewTicker(10 * time.Minute)
 	defer ticker.Stop()
