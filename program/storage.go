@@ -3,8 +3,7 @@ package programs
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"log"
+	"logger"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,6 +15,8 @@ import (
 const (
 	Port = "8083"
 )
+
+type HttpInstruction = types.HttpInstruction
 
 type StorageManager struct {
 	data        map[string]map[string]interface{}
@@ -30,15 +31,15 @@ var storage = &StorageManager{
 func InitStorage(dataDirPath string) {
 	storage.dataDirPath = dataDirPath
 	if err := os.MkdirAll(dataDirPath, 0755); err != nil {
-		log.Fatalf("Failed to create data directory: %v", err)
+		logger.Fatalf("Failed to create data directory: %v", err)
 	}
 }
 
 func RunHTTPServer() {
 	http.HandleFunc("/memory", memoryHandler)
-	log.Printf("Starting HTTP server on port %s", Port)
+	logger.Printf("Starting HTTP server on port %s", Port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", Port), nil); err != nil {
-		log.Fatalf("HTTP server failed: %v", err)
+		logger.Fatalf("HTTP server failed: %v", err)
 	}
 }
 
@@ -54,7 +55,7 @@ func memoryHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func saveMemory(w http.ResponseWriter, r *http.Request) {
-	var req types.HttpInstruction
+	var req HttpInstruction
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
 		return
@@ -75,7 +76,7 @@ func saveMemory(w http.ResponseWriter, r *http.Request) {
 
 	if err := persistDialogData(req.DialogID); err != nil {
 		http.Error(w, "Failed to save data", http.StatusInternalServerError)
-		log.Printf("Error persisting data for dialog %s: %v", req.DialogID, err)
+		logger.Printf("Error persisting data for dialog %s: %v", req.DialogID, err)
 		return
 	}
 
@@ -99,7 +100,7 @@ func queryMemory(w http.ResponseWriter, r *http.Request) {
 		if err := loadDialogData(dialogID); err != nil {
 			// It's not an error if the file doesn't exist yet
 			if !os.IsNotExist(err) {
-				log.Printf("Error loading data for dialog %s: %v", dialogID, err)
+				logger.Printf("Error loading data for dialog %s: %v", dialogID, err)
 			}
 		}
 	}
@@ -111,8 +112,8 @@ func queryMemory(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	resp := SpecialInstruction{
-		EventType: EventSpecialInstruction,
+	resp := HttpInstruction{
+		EventType: types.EventSpecialInstruction,
 		Action:    "get_tool_memory",
 		Key:       key,
 		Value:     value,
@@ -129,12 +130,12 @@ func persistDialogData(dialogID string) error {
 	if err != nil {
 		return err
 	}
-	return ioutil.WriteFile(filePath, data, 0644)
+	return os.WriteFile(filePath, data, 0644)
 }
 
 func loadDialogData(dialogID string) error {
 	filePath := filepath.Join(storage.dataDirPath, fmt.Sprintf("%s.json", dialogID))
-	data, err := ioutil.ReadFile(filePath)
+	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}
