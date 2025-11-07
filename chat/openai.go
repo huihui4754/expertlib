@@ -20,11 +20,11 @@ type ChatAIMessage = types.ChatAIMessage
 
 type OpenaiChatLLM struct {
 	DialogID            string                                   `json:"dialog_id"`
+	Messages            []openai.ChatCompletionMessageParamUnion `json:"messages"` // 不包括系统提示词
 	AIURL               string                                   `json:"-"`
 	AIModel             string                                   `json:"-"`
 	SystemPrompt        string                                   `json:"-"`
 	MessagesLenLimit    int                                      `json:"-"`
-	Messages            []openai.ChatCompletionMessageParamUnion `json:"messages"` // 不包括系统提示词
 	LastSavedContentMd5 string                                   `json:"-"`
 	callFuctionCall     func(call *FunctionCall) (string, error) `json:"-"`
 	Relpying            bool                                     `json:"-"`

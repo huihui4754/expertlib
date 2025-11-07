@@ -59,6 +59,7 @@ func NewChat() *Chat {
 		llmChatManager: LLMChatWithFunCallManager{
 			SaveIntervalTime: 20 * time.Minute,
 			llmsMutex:        &sync.Mutex{},
+			LLMChats:         make(map[string]*OpenaiChatLLM),
 		},
 	}
 }
@@ -136,6 +137,11 @@ func (c *Chat) SetCallFunctionHandler(callFuncHandler func(call *FunctionCall) (
 func (c *Chat) SetToExpertMessageHandler(handler func(TotalMessage, string)) {
 	c.expertMessageHandler = handler
 	logger.Info("expertMessageHandler set")
+}
+
+func (c *Chat) SetSaveIntervalTime(interval time.Duration) {
+	c.llmChatManager.SaveIntervalTime = interval
+	logger.Info("Save interval time set to:", interval)
 }
 
 func (c *Chat) Run() {

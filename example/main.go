@@ -2,6 +2,7 @@ package main
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/gorilla/websocket"
 
@@ -83,6 +84,7 @@ func main() {
 	chatx.SetLLMUrl("http://192.168.101.130:8011/v1")    // 设置大模型链接路径
 	chatx.SetModelName("Qwen3-8B-AWQ")                   // 设置大模型链接路径
 	chatx.SetSystemPrompt("你能够处理自动构建相关的问题")              // 设置多轮对话个性能力提示词
+	chatx.SetSaveIntervalTime(time.Minute)
 	chatx.SetToExpertMessageHandler(func(_ types.TotalMessage, message string) {
 		expertx.HandleChatRequestMessage(message)
 	})
