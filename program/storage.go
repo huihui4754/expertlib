@@ -22,39 +22,44 @@ type StorageManager struct {
 	data        map[string]map[string]interface{}
 	mu          sync.RWMutex
 	dataDirPath string
+	Port        string
 }
 
-var storage = &StorageManager{
-	data: make(map[string]map[string]interface{}),
-}
-
-func InitStorage(dataDirPath string) {
+func NewStorage(dataDirPath string, port string) *StorageManager {
+	storage := &StorageManager{
+		data:        make(map[string]map[string]interface{}),
+		dataDirPath: dataDirPath,
+		mu:          sync.RWMutex{},
+		Port:        port,
+	}
 	storage.dataDirPath = dataDirPath
 	if err := os.MkdirAll(dataDirPath, 0755); err != nil {
 		logger.Fatalf("Failed to create data directory: %v", err)
+		panic("无法创建存储目录")
 	}
+	return storage
 }
 
-func RunHTTPServer() {
-	http.HandleFunc("/memory", memoryHandler)
+func (s *StorageManager) RunHTTPServer() {
+	http.HandleFunc("/memory", s.memoryHandler)
 	logger.Printf("Starting HTTP server on port %s", Port)
 	if err := http.ListenAndServe(fmt.Sprintf(":%s", Port), nil); err != nil {
 		logger.Fatalf("HTTP server failed: %v", err)
 	}
 }
 
-func memoryHandler(w http.ResponseWriter, r *http.Request) {
+func (s *StorageManager) memoryHandler(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodPost:
-		saveMemory(w, r)
+		s.saveMemory(w, r)
 	case http.MethodGet:
-		queryMemory(w, r)
+		s.queryMemory(w, r)
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 	}
 }
 
-func saveMemory(w http.ResponseWriter, r *http.Request) {
+func (s *StorageManager) saveMemory(w http.ResponseWriter, r *http.Request) {
 	var req HttpInstruction
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -66,13 +71,13 @@ func saveMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage.mu.Lock()
-	defer storage.mu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
 
-	if _, ok := storage.data[req.DialogID]; !ok {
-		storage.data[req.DialogID] = make(map[string]interface{})
+	if _, ok := s.data[req.DialogID]; !ok {
+		s.data[req.DialogID] = make(map[string]interface{})
 	}
-	storage.data[req.DialogID][req.Key] = req.Value
+	s.data[req.DialogID][req.Key] = req.Value
 
 	if err := persistDialogData(req.DialogID); err != nil {
 		http.Error(w, "Failed to save data", http.StatusInternalServerError)
@@ -83,7 +88,7 @@ func saveMemory(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusOK)
 }
 
-func queryMemory(w http.ResponseWriter, r *http.Request) {
+func (s *StorageManager) queryMemory(w http.ResponseWriter, r *http.Request) {
 	dialogID := r.URL.Query().Get("dialog_id")
 	key := r.URL.Query().Get("key")
 
@@ -92,11 +97,11 @@ func queryMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	storage.mu.RLock()
-	defer storage.mu.RUnlock()
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 
 	// Load data from disk if not in memory
-	if _, ok := storage.data[dialogID]; !ok {
+	if _, ok := s.data[dialogID]; !ok {
 		if err := loadDialogData(dialogID); err != nil {
 			// It's not an error if the file doesn't exist yet
 			if !os.IsNotExist(err) {
@@ -106,7 +111,7 @@ func queryMemory(w http.ResponseWriter, r *http.Request) {
 	}
 
 	value := ""
-	if data, ok := storage.data[dialogID]; ok {
+	if data, ok := s.data[dialogID]; ok {
 		if val, ok := data[key]; ok {
 			value = fmt.Sprintf("%v", val)
 		}
@@ -124,17 +129,17 @@ func queryMemory(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func persistDialogData(dialogID string) error {
-	filePath := filepath.Join(storage.dataDirPath, fmt.Sprintf("%s.json", dialogID))
-	data, err := json.MarshalIndent(storage.data[dialogID], "", "  ")
+func (s *StorageManager) persistDialogData(dialogID string) error {
+	filePath := filepath.Join(s.dataDirPath, fmt.Sprintf("%s.json", dialogID))
+	data, err := json.MarshalIndent(s.data[dialogID], "", "  ")
 	if err != nil {
 		return err
 	}
 	return os.WriteFile(filePath, data, 0644)
 }
 
-func loadDialogData(dialogID string) error {
-	filePath := filepath.Join(storage.dataDirPath, fmt.Sprintf("%s.json", dialogID))
+func (s *StorageManager) loadDialogData(dialogID string) error {
+	filePath := filepath.Join(s.dataDirPath, fmt.Sprintf("%s.json", dialogID))
 	data, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
@@ -145,6 +150,6 @@ func loadDialogData(dialogID string) error {
 		return err
 	}
 
-	storage.data[dialogID] = dialogData
+	s.data[dialogID] = dialogData
 	return nil
 }
