@@ -90,12 +90,12 @@ expert ，chat ,program 三个模块可以程序中单独使用，也可以写�
     program.SetDataPath("xxx/your_program_data_dir") // 设置数据卷路径
     program.SetProgramPath("xxx/your_program_js_dir") // 设置本地js 程序库路径
     ```
-4.  **配置实例**：设置数据文件路径、LLM URL、模型名称等。
-5.  **注册意图匹配器**：
+
+4.  **注册意图匹配器**：
     ```go
     expert.Register(myIntentMatcher, "controlAutoBuild")
     ```
-6.  **设置消息处理程序**：
+5.  **设置消息处理程序**：
     ```go
     expert.SetToUserMessageHandler(func(msg types.TotalMessage, s string) {
         // 将消息发送给用户
@@ -106,20 +106,23 @@ expert ，chat ,program 三个模块可以程序中单独使用，也可以写�
     chat.SetToExpertMessageHandler(expert.HandleChatRequestMessage)
     program.SetToExpertMessageHandler(expert.HandleProgramRequestMessage)
     ```
-7.  **运行实例**：
+6.  **运行实例**：
     ```go
     go expert.Run()
     go chat.Run()
     go program.Run()
     ```
-8.  **处理用户请求**：
+7.  **处理用户请求**：
     ```go
     expert.HandleUserRequestMessage(userMessage)
     ```
 
 ## 5. 如何扩展
 
-### 5.1. 添加新的专家（代码中添加）
+### 5.1 添加新的rnn神经网络意图识别 （）
+要添加新的rnn 神经网络意图识别参照 https://git.ipanel.cn/faas/zhangshy/neural-network-skill 仓库说明
+
+### 5.2. 添加新的意图识别（代码中添加）
 
 要添加新的意图，您需要创建一个实现 `IntentMatchInter` 接口的结构体：
 
@@ -148,7 +151,7 @@ expert.Register(func() experts.IntentMatchInter {
 }, "myIntent")
 ```
 
-### 5.2. 添加新的程序
+### 5.3. 添加新的程序
 
 要添加新的程序，您需要创建一个 Node.js 脚本，该脚本通过 Unix 套接字与 `program` 模块通信。该脚本将接收来自 `program` 模块的消息，并可以发送消息回去。
 
