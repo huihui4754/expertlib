@@ -146,7 +146,7 @@ func (c *Chat) Run() {
 	}
 
 	if c.dataFilePath != "" {
-		c.llmChatManager.PeriodicSave()
+		go c.llmChatManager.PeriodicSave()
 	}
 
 	logger.Info("Chat instance running")

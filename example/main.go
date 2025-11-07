@@ -70,7 +70,7 @@ func main() {
 	funclibs.SetDataFilePath("/home/zhangsh/test/programdata") // 设置数据卷路径
 	funclibs.SetProgramPath("/home/zhangsh/test/programjs")    // 设置本地js 程序库路径
 
-	funclibs.SetToExpertMessageHandler(func(_ any, message string) {
+	funclibs.SetToExpertMessageHandler(func(_ types.TotalMessage, message string) {
 		expertx.HandleProgramRequestMessage(message)
 	})
 
@@ -88,6 +88,7 @@ func main() {
 	})
 
 	expertx.SetToChatMessageHandler(func(_ types.TotalMessage, message string) {
+		logger.Debugf("转发给多轮对话： %v", message)
 		chatx.HandleExpertRequestMessage(message)
 	})
 
