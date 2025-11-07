@@ -23,7 +23,6 @@ type HttpInstruction = types.HttpInstruction
 type DialogData struct {
 	data     map[string]any
 	cacheMd5 string
-	mu       sync.RWMutex
 }
 
 type StorageManager struct {
@@ -56,15 +55,31 @@ func (s *StorageManager) RunHTTPServer() {
 		logger.Fatalf("HTTP server failed: %v", err)
 	}
 }
+
 func (s *StorageManager) periodicPersist() {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(10 * time.Second)
 	defer ticker.Stop()
 
 	for range ticker.C {
 		s.mu.Lock()
-		for dialogID := range s.data {
-			s.persistDialogData(dialogID)
+		for dialogID, dialog := range s.data {
+			data, err := json.MarshalIndent(dialog.data, "", "  ")
+			if err != nil {
+				logger.Printf("Error marshaling data for dialog %s: %v", dialogID, err)
+				continue
+			}
+			hash := md5.Sum(data)
+			currentMd5 := hex.EncodeToString(hash[:])
 
+			if currentMd5 != dialog.cacheMd5 {
+				filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
+				if err := os.WriteFile(filePath, data, 0644); err != nil {
+					logger.Printf("Error writing file for dialog %s: %v", dialogID, err)
+				} else {
+					dialog.cacheMd5 = currentMd5
+					logger.Debugf("Persisted data for dialog %s", dialogID)
+				}
+			}
 		}
 		s.mu.Unlock()
 	}
@@ -93,23 +108,20 @@ func (s *StorageManager) saveMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	if _, ok := s.data[req.DialogID]; !ok {
-		err := s.loadDialogData(req.DialogID)
-		if err != nil {
+		if err := s.loadDialogData(req.DialogID); err != nil {
 			s.data[req.DialogID] = &DialogData{
-				data:     map[string]any{},
-				cacheMd5: "",
-				mu:       sync.RWMutex{},
+				data: make(map[string]any),
 			}
 		}
 	}
-	s.data[req.DialogID].data[req.Key] = req.Value
-
-	if err := s.persistDialogData(req.DialogID); err != nil {
-		http.Error(w, "Failed to save data", http.StatusInternalServerError)
-		logger.Printf("Error persisting data for dialog %s: %v", req.DialogID, err)
-		return
+	if s.data[req.DialogID].data == nil {
+		s.data[req.DialogID].data = make(map[string]any)
 	}
+	s.data[req.DialogID].data[req.Key] = req.Value
 
 	w.WriteHeader(http.StatusOK)
 }
@@ -123,20 +135,29 @@ func (s *StorageManager) queryMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Load data from disk if not in memory
-	if _, ok := s.data[dialogID]; !ok {
-		if err := s.loadDialogData(dialogID); err != nil {
-			// It's not an error if the file doesn't exist yet
-			if !os.IsNotExist(err) {
-				logger.Printf("Error loading data for dialog %s: %v", dialogID, err)
+	s.mu.RLock()
+	_, inMemory := s.data[dialogID]
+	s.mu.RUnlock()
+
+	if !inMemory {
+		s.mu.Lock()
+		if _, ok := s.data[dialogID]; !ok {
+			if err := s.loadDialogData(dialogID); err != nil {
+				if !os.IsNotExist(err) {
+					logger.Printf("Error loading data for dialog %s: %v", dialogID, err)
+				}
 			}
 		}
+		s.mu.Unlock()
 	}
 
-	var value any
-	if data, ok := s.data[dialogID]; ok {
-		if val, ok := data.data[key]; ok {
-			value = val
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	value := ""
+	if dialog, ok := s.data[dialogID]; ok && dialog.data != nil {
+		if val, ok := dialog.data[key]; ok {
+			value = fmt.Sprintf("%v", val)
 		}
 	}
 
@@ -152,23 +173,7 @@ func (s *StorageManager) queryMemory(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(resp)
 }
 
-func (s *StorageManager) persistDialogData(dialogID string) error {
-	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
-	s.data[dialogID].mu.Lock()
-	data, err := json.MarshalIndent(s.data[dialogID].data, "", "  ")
-	s.data[dialogID].mu.Unlock()
-	if err != nil {
-		return err
-	}
-	hash := md5.Sum(data)
-	currentMd5 := hex.EncodeToString(hash[:])
-	if currentMd5 == s.data[dialogID].cacheMd5 {
-		logger.Debug("无需保存")
-		return nil
-	}
-	return os.WriteFile(filePath, data, 0644)
-}
-
+// loadDialogData must be called with a write lock.
 func (s *StorageManager) loadDialogData(dialogID string) error {
 	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
 	data, err := os.ReadFile(filePath)
@@ -185,11 +190,8 @@ func (s *StorageManager) loadDialogData(dialogID string) error {
 	dialog := &DialogData{
 		data:     dialogData,
 		cacheMd5: currentMd5,
-		mu:       sync.RWMutex{},
 	}
 
-	s.mu.Lock()
 	s.data[dialogID] = dialog
-	s.mu.Unlock()
 	return nil
 }

@@ -82,5 +82,5 @@ type HttpInstruction struct {
 	DialogID  string `json:"dialog_id"`
 	Action    string `json:"action"`
 	Key       string `json:"key"`
-	Value     string `json:"value,omitempty"`
+	Value     any    `json:"value,omitempty"`
 }
