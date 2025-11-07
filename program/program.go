@@ -24,7 +24,7 @@ func SetLogger(level loglevel.Level) {
 type program struct {
 	dataFilePath           string
 	programPath            string
-	expertMessageHandler   func(any, string)
+	expertMessageHandler   func(TotalMessage, string)
 	expertMessageInChan    chan *TotalMessage
 	toExpertMessageOutChan chan *TotalMessage
 	sessionManager         *SessionManager
@@ -114,7 +114,7 @@ func (p *program) HandleExpertRequestMessage(message any) {
 	}
 }
 
-func (p *program) SetToExpertMessageHandler(handler func(any, string)) {
+func (p *program) SetToExpertMessageHandler(handler func(TotalMessage, string)) {
 	p.expertMessageHandler = handler
 	logger.Info("ExpertMessageHandler set")
 }

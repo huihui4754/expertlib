@@ -23,5 +23,6 @@ require (
 
 require (
 	github.com/google/uuid v1.6.0
+	github.com/gorilla/websocket v1.5.3
 	github.com/huihui4754/loglevel v1.0.3
 )
