@@ -5,7 +5,6 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -594,7 +593,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 		dialogx.Program = ""
 
 	default:
-		log.Printf("收到未知事件类型: %d", message.EventType)
+		logger.Debugf("收到未知事件类型: %d", message.EventType)
 	}
 }
 
@@ -639,7 +638,7 @@ func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 		t.handleFromUserMessage(message)
 
 	default:
-		log.Printf("收到未知事件类型: %d", message.EventType)
+		logger.Debugf("收到未知事件类型: %d", message.EventType)
 	}
 }
 
@@ -675,7 +674,7 @@ func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 		t.userMessageHandler(toUserMessage, string(msg))
 
 	default:
-		log.Printf("收到未知事件类型: %d", message.EventType)
+		logger.Debugf("收到未知事件类型: %d", message.EventType)
 	}
 }
 

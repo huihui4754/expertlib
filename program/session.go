@@ -35,6 +35,8 @@ type Session struct {
 	mu                sync.Mutex
 	manager           *SessionManager
 	listener          net.Listener
+	conn              net.Conn
+	connMu            sync.Mutex
 }
 
 type SessionManager struct {
@@ -52,10 +54,10 @@ func NewSessionManager(toExpertMessageOutChan chan *types.TotalMessage) *Session
 }
 
 func (m *SessionManager) GetOrCreateSession(dialogID string, userID string, intent string, httpPort string) (*Session, error) {
-	m.mu.RLock()
-	session, exists := m.sessions[dialogID]
-	m.mu.RUnlock()
-	if exists {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	if session, exists := m.sessions[dialogID]; exists {
 		logger.Infof("Found existing session for dialog_id: %s", dialogID)
 		session.resetTimeout()
 		return session, nil
@@ -73,7 +75,7 @@ func (m *SessionManager) GetOrCreateSession(dialogID string, userID string, inte
 		return nil, fmt.Errorf("program for intent '%s' not found at %s", intent, NodeJSProgramPath)
 	}
 
-	session = &Session{
+	session := &Session{
 		DialogID:          dialogID,
 		UserID:            userID,
 		NodeJSProgramPath: NodeJSProgramPath,
@@ -83,13 +85,13 @@ func (m *SessionManager) GetOrCreateSession(dialogID string, userID string, inte
 		manager:           m,
 	}
 
+	m.sessions[dialogID] = session
+
 	err := session.start()
 	if err != nil {
+		delete(m.sessions, dialogID)
 		return nil, err
 	}
-	m.mu.RLock()
-	m.sessions[dialogID] = session
-	m.mu.RUnlock()
 
 	return session, nil
 }
@@ -162,12 +164,27 @@ func (s *Session) listenOnSocket() {
 			logger.Warnf("Error accepting connection for dialog %s: %v", s.DialogID, err)
 			return // Stop listening if accept fails (e.g., listener closed)
 		}
+
+		s.connMu.Lock()
+		if s.conn != nil {
+			s.conn.Close()
+		}
+		s.conn = conn
+		s.connMu.Unlock()
+
 		go s.handleConnection(conn)
 	}
 }
 
 func (s *Session) handleConnection(conn net.Conn) {
-	defer conn.Close()
+	defer func() {
+		conn.Close()
+		s.connMu.Lock()
+		if s.conn == conn {
+			s.conn = nil
+		}
+		s.connMu.Unlock()
+	}()
 
 	for {
 		s.resetTimeout()
@@ -243,25 +260,22 @@ func (s *Session) close() {
 }
 
 func (s *Session) start() error {
-	cmd := exec.Command("node", s.NodeJSProgramPath, fmt.Sprintf("--socket=\"%s\" --port=\"%s\" ", s.SocketPath, s.dataPort))
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
-
-	if err := cmd.Start(); err != nil {
-		logger.Errorf("failed to start nodejs program: %w", err)
-		return err
-	}
+	s.Cmd = exec.Command("node", s.NodeJSProgramPath, fmt.Sprintf("--socket=%s", s.SocketPath), fmt.Sprintf("--port=%s", s.dataPort))
+	s.Cmd.Stdout = os.Stdout
+	s.Cmd.Stderr = os.Stderr
 
 	listener, err := net.Listen("unix", s.SocketPath)
 	if err != nil {
 		logger.Errorf("Failed to listen on socket for dialog %s: %v", s.DialogID, err)
-		s.manager.CloseSession(s.DialogID, types.EventToolFinish)
 		return err
 	}
-
 	s.listener = listener
 
-	defer s.listener.Close()
+	if err := s.Cmd.Start(); err != nil {
+		s.listener.Close() // Clean up listener if process fails to start
+		logger.Errorf("failed to start nodejs program: %w", err)
+		return err
+	}
 
 	logger.Infof("Listening on socket %s for dialog %s", s.SocketPath, s.DialogID)
 
@@ -271,14 +285,25 @@ func (s *Session) start() error {
 }
 
 func (s *Session) Send(message *types.TotalMessage) error {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+	s.connMu.Lock()
+	defer s.connMu.Unlock()
 
-	conn, err := net.DialTimeout("unix", s.SocketPath, 2*time.Second)
-	if err != nil {
-		return fmt.Errorf("failed to connect to socket: %w", err)
+	// Wait for the Node.js process to connect, holding the lock.
+	// This is not ideal for performance but is simple and safe from races.
+	if s.conn == nil {
+		for i := 0; i < 10; i++ { // Retry for up to 1 second
+			s.connMu.Unlock()
+			time.Sleep(100 * time.Millisecond)
+			s.connMu.Lock()
+			if s.conn != nil {
+				break
+			}
+		}
 	}
-	defer conn.Close()
+
+	if s.conn == nil {
+		return fmt.Errorf("failed to send message: no active connection to nodejs process")
+	}
 
 	body, err := json.Marshal(message)
 	if err != nil {
@@ -291,11 +316,11 @@ func (s *Session) Send(message *types.TotalMessage) error {
 	binary.BigEndian.PutUint16(header[6:8], uint16(message.EventType))
 	binary.BigEndian.PutUint32(header[8:12], uint32(len(body)))
 
-	if _, err := conn.Write(header); err != nil {
+	if _, err := s.conn.Write(header); err != nil {
 		return fmt.Errorf("failed to write header: %w", err)
 	}
 
-	if _, err := conn.Write(body); err != nil {
+	if _, err := s.conn.Write(body); err != nil {
 		return fmt.Errorf("failed to write body: %w", err)
 	}
 

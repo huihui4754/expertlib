@@ -14,10 +14,6 @@ import (
 	"github.com/huihui4754/expertlib/types"
 )
 
-const (
-	Port = "8083"
-)
-
 type HttpInstruction = types.HttpInstruction
 
 type DialogData struct {
@@ -51,8 +47,8 @@ func (s *StorageManager) RunHTTPServer() {
 	}
 	go s.periodicPersist()
 	http.HandleFunc("/memory", s.memoryHandler)
-	logger.Printf("Starting HTTP server on port %s", Port)
-	if err := http.ListenAndServe(fmt.Sprintf(":%s", Port), nil); err != nil {
+	logger.Printf("Starting HTTP server on port %s", s.Port)
+	if err := http.ListenAndServe(fmt.Sprintf(":%s", s.Port), nil); err != nil {
 		logger.Fatalf("HTTP server failed: %v", err)
 	}
 }

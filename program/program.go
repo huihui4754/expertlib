@@ -69,6 +69,7 @@ func (p *program) SetDataFilePath(path string) {
 
 func (p *program) SetProgramPath(path string) {
 	p.programPath = path
+	p.sessionManager.ProgramBasePath = path
 	logger.Info("Program path set to:", path)
 }
 

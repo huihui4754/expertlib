@@ -193,7 +193,7 @@
     "event_type": 3000,  //  固定为 3000 代表特殊指令
     "action": "query_tool_memory",
     "key": "last_release_repo",
-    "user_id": "user-123456789",
+    "dialog_id": "user-123456789",
 }
 ```
 对应回复
@@ -213,6 +213,6 @@
     "action": "save_tool_memory",
     "key": "last_release_repo",
 	"value":"http://xxx.xxx.xx/xxx.release.git",
-    "user_id": "user-123456789",
+    "dialog_id": "user-123456789",
 }
 ```

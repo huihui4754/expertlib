@@ -56,7 +56,7 @@ type WorkDocExpertMatch struct {
 }
 
 func (w *WorkDocExpertMatch) GetIntentName() string {
-	return "embody_articles" // 注册的意图名称，和 对应的 nodejs 脚本名称要保持一致
+	return "checkAutoStatus" // 注册的意图名称，和 对应的 nodejs 脚本名称要保持一致
 }
 
 func (w *WorkDocExpertMatch) GetIntentDesc() string {
@@ -157,8 +157,9 @@ func main() {
 	})
 
 	go funclibs.Run() // 启动程序库实例
-	go chatx.Run()    // 启动多轮对话实例
-	go expertx.Run()  // 启动专家实例
+	go funclibs.RunStroageUserData()
+	go chatx.Run()   // 启动多轮对话实例
+	go expertx.Run() // 启动专家实例
 
 	http.HandleFunc(serverPrefix+"/opendialog", func(w http.ResponseWriter, r *http.Request) {
 		handleWebSocket(expertx, w, r)

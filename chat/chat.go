@@ -3,7 +3,6 @@ package chat
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os/user"
 	"path/filepath"
 	"sync"
@@ -189,7 +188,7 @@ func (c *Chat) handleFromExpertMessage(message *TotalMessage) {
 		logger.Debug("专家终止对话")
 
 	default:
-		log.Printf("收到未知事件类型: %d", message.EventType)
+		logger.Debugf("收到未知事件类型: %d", message.EventType)
 	}
 
 }
