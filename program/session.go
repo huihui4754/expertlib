@@ -243,7 +243,7 @@ func (s *Session) close() {
 }
 
 func (s *Session) start() error {
-	cmd := exec.Command("node", s.NodeJSProgramPath, fmt.Sprintf("--socket=\"%s\" --port=%d ", s.SocketPath, s.dataPort))
+	cmd := exec.Command("node", s.NodeJSProgramPath, fmt.Sprintf("--socket=\"%s\" --port=\"%s\" ", s.SocketPath, s.dataPort))
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
 
