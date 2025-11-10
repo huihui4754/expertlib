@@ -192,7 +192,7 @@ function main() {
         try {
             const response = await axios.get(apiUrl, {
                 headers: {
-                    "Authorization": "Basic ZXlKMGVYQWlPaUpLVjFRaUxDSmhiR2NpT2lKSVV6STFOaUo5LmV5SjFJam9pZW1oaGJtZHphSGtpTENKeUlqb2lNQ0lzSW5ZaU9qRTVOVGMyZlEual9Zam9aUzhyR0NIX3A0cWZtLUlWUUQ4b0tlYXNmOXhULUJlMGtYZ2xXODo="
+                    "Authorization": "Basic xxxxxxxxxx"
                 }
             });
             const data = response.data;
