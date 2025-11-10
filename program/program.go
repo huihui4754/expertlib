@@ -6,13 +6,15 @@ import (
 	"net/http"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	"github.com/huihui4754/expertlib/types"
 	"github.com/huihui4754/loglevel"
 )
 
 var (
-	logger = loglevel.NewLog(loglevel.Debug)
+	logger              = loglevel.NewLog(loglevel.Debug)
+	defalutSaveInterval = 10 * time.Minute
 )
 
 type TotalMessage = types.TotalMessage
@@ -29,6 +31,7 @@ type program struct {
 	toExpertMessageOutChan chan *TotalMessage
 	sessionManager         *SessionManager
 	dataStorage            *StorageManager
+	saveInterval           time.Duration
 	port                   string
 }
 
@@ -46,6 +49,7 @@ func NewTool() *program {
 
 	// Initialize storage with the data file path
 	dataStorage := NewStorage(defalutDataPath, defalutPort)
+	dataStorage.SaveInterval = defalutSaveInterval
 
 	toExpertChan := make(chan *TotalMessage)
 
@@ -56,6 +60,7 @@ func NewTool() *program {
 		toExpertMessageOutChan: toExpertChan,
 		sessionManager:         NewSessionManager(toExpertChan),
 		dataStorage:            dataStorage,
+		saveInterval:           defalutSaveInterval,
 		port:                   defalutPort,
 	}
 }
@@ -65,6 +70,12 @@ func (p *program) SetDataFilePath(path string) {
 	p.dataStorage.DataDirPath = path
 	logger.Info("Data file path set to:", path)
 	// Update storage manager with new path if it's already initialized
+}
+
+func (p *program) SetSaveIntervalTime(interval time.Duration) {
+	p.saveInterval = interval
+	p.dataStorage.SaveInterval = interval
+	logger.Info("Save interval time set to:", interval)
 }
 
 func (p *program) SetProgramPath(path string) {

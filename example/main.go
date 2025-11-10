@@ -3,6 +3,7 @@ package main
 import (
 	"net/http"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
@@ -23,6 +24,8 @@ var (
 	logger       = loglevel.NewLog(loglevel.Debug)
 	serverPrefix = "/api"
 	listenAddr   = "0.0.0.0:8085"
+	urlRegex     = regexp.MustCompile(`(https?://[^\s]+\.release.git)`)
+	tagRegex     = regexp.MustCompile(`([a-zA-Z0-9]+-v\d+\.\d+|v\d+\.\d+)`)
 )
 
 func handleWebSocket(expertx *experts.Expert, w http.ResponseWriter, r *http.Request) {
@@ -115,7 +118,14 @@ func main() {
 	expertx.SetRNNIntentPath("/home/zhangsh/test/rnnmodel")  // 设置本地rnn 意图识别模型路径，
 	expertx.SetONNXLibPath("/home/zhangsh/test/libonnxruntime.so.1.22.0")
 
-	expertx.Register(NewCheckAutoStatus, "embody_articles")
+	expertx.Register(NewCheckAutoStatus, "checkAutoStatus")
+
+	expertx.SetMessageFormatFunc(func(s string) string {
+
+		content := urlRegex.ReplaceAllString(s, "")
+		content = strings.TrimSpace(tagRegex.ReplaceAllString(content, ""))
+		return content
+	})
 
 	expertx.SetToUserMessageHandler(func(_ types.TotalMessage, message string) {
 		// 处理程序库返回的消息
@@ -131,7 +141,7 @@ func main() {
 	funclibs := tools.NewTool()
 	funclibs.SetDataFilePath("/home/zhangsh/test/programdata") // 设置数据卷路径
 	funclibs.SetProgramPath("/home/zhangsh/test/programjs")    // 设置本地js 程序库路径
-
+	funclibs.SetSaveIntervalTime(1 * time.Minute)
 	funclibs.SetToExpertMessageHandler(func(_ types.TotalMessage, message string) {
 		expertx.HandleProgramRequestMessage(message)
 	})

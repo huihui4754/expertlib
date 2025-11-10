@@ -147,6 +147,8 @@ func (i *IntentMatchManager) FindBestIntent(relacontent string, attachments []At
 		content = i.messageformatting(content)
 	}
 
+	logger.Debugf("content: %s", content)
+
 	i.cacheMutex.RLock()
 	cachedIntent, found := i.IntentCache[content]
 	i.cacheMutex.RUnlock()

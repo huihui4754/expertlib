@@ -20,22 +20,21 @@ function parseArgs() {
 /**
  * 根据指定的协议通过套接字创建并发送消息。
  * @param {net.Socket} socket 要将消息写入的套接字。
- * @param {number} eventType 消息的事件类型。
  * @param {object} message JSON payload。
  */
-function sendMessage(socket, eventType, message) {
+function sendJsonMessage(socket, message) {
     const body = Buffer.from(JSON.stringify(message));
     const header = Buffer.alloc(16);
 
     header.writeUInt32BE(0xDEADBEEF, 0); // Magic number
     header.writeUInt16BE(1, 4);          // Protocol version
-    header.writeUInt16BE(eventType, 6);  // Message type
+    header.writeUInt16BE(1, 6);  // Message type json 默认为1
     header.writeUInt32BE(body.length, 8);// Body length
     header.writeUInt32BE(0, 12);         // Reserved
 
     const fullMessage = Buffer.concat([header, body]);
     socket.write(fullMessage);
-    console.log(`Sent message with event type ${eventType}`);
+    console.log(`Sent message  ${message}`);
 }
 
 /**
@@ -57,10 +56,10 @@ async function queryMemory(port, key, dialog_id) {
     });
 
     const options = {
-        hostname: 'localhost',
+        hostname: '127.0.0.1',
         port: port,
-        path: '/',
-        method: 'POST',
+        path: '/memory',
+        method: 'GET',
         headers: {
             'Content-Type': 'application/json',
             'Content-Length': data.length
@@ -111,9 +110,9 @@ async function saveMemory(port, key, value, dialog_id) {
     });
 
     const options = {
-        hostname: 'localhost',
+        hostname: '127.0.0.1',
         port: port,
-        path: '/',
+        path: '/memory',
         method: 'POST',
         headers: {
             'Content-Type': 'application/json',
@@ -173,11 +172,10 @@ function main() {
      * 执行实际的查询操作
      */
     async function performQuery(repoUrl, currentTag, dialog_id, user_id) {
-        //todo 保存和查询记忆数据接口暂未调通
-        // await saveMemory(port, "repoUrl", repoUrl, user_id);
-        // await saveMemory(port, "tag", currentTag, user_id);
+        await saveMemory(port, "repoUrl", repoUrl, dialog_id);
+        await saveMemory(port, "tag", currentTag, dialog_id);
 
-        sendMessage(socket, 2001, {
+        sendJsonMessage(socket,  {
             "event_type": 2001,
             "dialog_id": dialog_id,
             "user_id": user_id,
@@ -194,7 +192,7 @@ function main() {
         try {
             const response = await axios.get(apiUrl, {
                 headers: {
-                    "Authorization": "Basic xxxxx"  // 改成自己的
+                    "Authorization": "改成自己的"  //测试时改成自己的凭证
                 }
             });
             const data = response.data;
@@ -204,7 +202,7 @@ function main() {
             if (data.error_code === 0) {
                 const autoInfo = data.data;
                 const reply = `查询 ${repoUrl} 的 ${currentTag} 成功:\n- Auto名称: ${autoInfo['auto名称']}\n- Buildee名称: ${autoInfo['buildee名称']}\n- Auto启动时间: ${autoInfo['auto启动时间']}\n- 健康状况: ${autoInfo['健康状况']}\n- 健康持续时长: ${autoInfo['健康持续时长']}\n- 健康开始时间: ${autoInfo['健康开始时间']}`;
-                sendMessage(socket, 2001, {
+                sendJsonMessage(socket,  {
                     "event_type": 2001,
                     "dialog_id": dialog_id,
                     "user_id": user_id,
@@ -217,7 +215,7 @@ function main() {
                     }
                 });
             } else {
-                sendMessage(socket, 2001, {
+                sendJsonMessage(socket,  {
                     "event_type": 2001,
                     "dialog_id": dialog_id,
                     "user_id": user_id,
@@ -232,7 +230,7 @@ function main() {
             }
 
         } catch (error) {
-            sendMessage(socket, 2001, {
+            sendJsonMessage(socket,  {
                 "event_type": 2001,
                 "dialog_id": dialog_id,
                 "user_id": user_id,
@@ -249,9 +247,9 @@ function main() {
             repoUrl = null;
             tag = null;
             // End the conversation
-            // setTimeout(() => {
-            //     sendMessage(socket, 2002, { event_type: 2002, dialog_id, user_id });
-            // }, 1000);
+            setTimeout(() => {
+                sendJsonMessage(socket, { event_type: 2002, dialog_id, user_id });
+            }, 1000);
         }
     }
 
@@ -281,7 +279,7 @@ function main() {
             await performQuery(tempRepoUrl, tempTag, dialog_id, user_id);
         } else {
             // 否则，视为否认或提供了新信息，要求重新输入
-            sendMessage(socket, 2001, {
+            sendJsonMessage(socket,  {
                 "event_type": 2001,
                 "dialog_id": dialog_id,
                 "user_id": user_id,
@@ -340,7 +338,7 @@ function main() {
                     pendingTag = null;
                     repoUrl = null;
                     tag = null;
-                    sendMessage(socket, 2002, {
+                    sendJsonMessage(socket, {
                         "event_type": 2002,
                         "dialog_id": dialog_id,
                         "user_id": user_id,
@@ -368,8 +366,10 @@ function main() {
                 }
 
                 // 解析标签
+
                 const tagRegex = /([a-zA-Z0-9]+-v\d+\.\d+|v\d+\.\d+)/;
                 const messageWithoutUrl = content.replace(urlRegex, '');
+                console.log("messages without url: ",messageWithoutUrl)
                 const tagMatch = messageWithoutUrl.match(tagRegex);
                 if (tagMatch) {
                     tag = tagMatch[0];
@@ -387,7 +387,7 @@ function main() {
                 if (shouldUsePrevious) {
                     if (!repoUrl) {
                         try {
-                            const mem = await queryMemory(port, "repoUrl", user_id);
+                            const mem = await queryMemory(port, "repoUrl", dialog_id);
                             if (mem && mem.value) repoUrl = mem.value;
                         } catch (e) {
                             console.error("Could not query repoUrl from memory", e);
@@ -395,7 +395,7 @@ function main() {
                     }
                     if (!tag) {
                         try {
-                            const mem = await queryMemory(port, "tag", user_id);
+                            const mem = await queryMemory(port, "tag", dialog_id);
                             if (mem && mem.value) tag = mem.value;
                         } catch(e) {
                             console.error("Could not query tag from memory", e);
@@ -404,7 +404,7 @@ function main() {
 
                     // 检查是否成功获取到历史数据
                     if (!repoUrl || !tag) {
-                        sendMessage(socket, 2001, {
+                        sendJsonMessage(socket,  {
                             "event_type": 2001,
                             "dialog_id": dialog_id,
                             "user_id": user_id,
@@ -423,7 +423,7 @@ function main() {
                     pendingTag = tag;
                     waitingForConfirmation = true;
 
-                    sendMessage(socket, 2001, {
+                    sendJsonMessage(socket,  {
                         "event_type": 2001,
                         "dialog_id": dialog_id,
                         "user_id": user_id,
@@ -439,7 +439,7 @@ function main() {
 
                 // 检查信息是否缺失并询问
                 if (!repoUrl && !tag) {
-                    sendMessage(socket, 2001, {
+                    sendJsonMessage(socket,  {
                         "event_type": 2001,
                         "dialog_id": dialog_id,
                         "user_id": user_id,
@@ -452,7 +452,7 @@ function main() {
                     });
                     return;
                 } else if (!repoUrl) {
-                    sendMessage(socket, 2001, {
+                    sendJsonMessage(socket,  {
                         "event_type": 2001,
                         "dialog_id": dialog_id,
                         "user_id": user_id,
@@ -465,7 +465,7 @@ function main() {
                     });
                     return;
                 } else if (!tag) {
-                    sendMessage(socket, 2001, {
+                    sendJsonMessage(socket,  {
                         "event_type": 2001,
                         "dialog_id": dialog_id,
                         "user_id": user_id,

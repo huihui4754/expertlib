@@ -23,18 +23,20 @@ type DialogData struct {
 }
 
 type StorageManager struct {
-	data        map[string]*DialogData
-	mu          sync.RWMutex
-	DataDirPath string
-	Port        string
+	data         map[string]*DialogData
+	mu           sync.RWMutex
+	DataDirPath  string
+	Port         string
+	SaveInterval time.Duration
 }
 
 func NewStorage(dataDirPath string, port string) *StorageManager {
 	storage := &StorageManager{
-		data:        make(map[string]*DialogData),
-		DataDirPath: dataDirPath,
-		mu:          sync.RWMutex{},
-		Port:        port,
+		data:         make(map[string]*DialogData),
+		DataDirPath:  dataDirPath,
+		mu:           sync.RWMutex{},
+		Port:         port,
+		SaveInterval: 10 * time.Minute,
 	}
 
 	return storage
@@ -58,31 +60,18 @@ func (s *StorageManager) GetStroageHandler() func(w http.ResponseWriter, r *http
 }
 
 func (s *StorageManager) periodicPersist() {
-	ticker := time.NewTicker(10 * time.Minute)
+	ticker := time.NewTicker(s.SaveInterval)
 	defer ticker.Stop()
 
 	for range ticker.C {
-		s.mu.Lock()
 		for dialogID := range s.data {
 			s.persistDialogData(dialogID)
 
 		}
-		s.mu.Unlock()
 	}
 }
 
 func (s *StorageManager) memoryHandler(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		s.saveMemory(w, r)
-	case http.MethodGet:
-		s.queryMemory(w, r)
-	default:
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-	}
-}
-
-func (s *StorageManager) saveMemory(w http.ResponseWriter, r *http.Request) {
 	var req HttpInstruction
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -94,92 +83,97 @@ func (s *StorageManager) saveMemory(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if _, ok := s.data[req.DialogID]; !ok {
-		err := s.loadDialogData(req.DialogID)
-		if err != nil {
-			s.data[req.DialogID] = &DialogData{
-				data:     map[string]any{},
-				cacheMd5: "",
-				mu:       sync.RWMutex{},
-			}
+	dialog := s.getOrCreateDialogData(req.DialogID)
+
+	switch req.Action {
+	case "query_tool_memory":
+		dialog.mu.RLock()
+		value := dialog.data[req.Key]
+		dialog.mu.RUnlock()
+
+		resp := HttpInstruction{
+			EventType: types.EventSpecialInstruction,
+			Action:    "get_tool_memory",
+			Key:       req.Key,
+			Value:     value,
+			DialogID:  req.DialogID,
 		}
-	}
-	s.data[req.DialogID].data[req.Key] = req.Value
 
-	if err := s.persistDialogData(req.DialogID); err != nil {
-		http.Error(w, "Failed to save data", http.StatusInternalServerError)
-		logger.Printf("Error persisting data for dialog %s: %v", req.DialogID, err)
-		return
-	}
+		w.Header().Set("Content-Type", "application/json")
+		json.NewEncoder(w).Encode(resp)
 
-	w.WriteHeader(http.StatusOK)
+	case "save_tool_memory":
+		dialog.mu.Lock()
+		dialog.data[req.Key] = req.Value
+		dialog.mu.Unlock()
+
+		w.WriteHeader(http.StatusOK)
+	}
 }
 
-func (s *StorageManager) queryMemory(w http.ResponseWriter, r *http.Request) {
-	dialogID := r.URL.Query().Get("dialog_id")
-	key := r.URL.Query().Get("key")
-
-	if dialogID == "" || key == "" {
-		http.Error(w, "dialog_id and key are required", http.StatusBadRequest)
-		return
+func (s *StorageManager) getOrCreateDialogData(dialogID string) *DialogData {
+	s.mu.RLock()
+	dialog, ok := s.data[dialogID]
+	s.mu.RUnlock()
+	if ok {
+		return dialog
 	}
 
-	// Load data from disk if not in memory
-	if _, ok := s.data[dialogID]; !ok {
-		if err := s.loadDialogData(dialogID); err != nil {
-			// It's not an error if the file doesn't exist yet
-			if !os.IsNotExist(err) {
-				logger.Printf("Error loading data for dialog %s: %v", dialogID, err)
-			}
+	dialog, err := s.loadDialogDataFromFile(dialogID)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			logger.Printf("Error loading data for dialog %s: %v", dialogID, err)
+		}
+		// If file doesn't exist or fails to load, create a new one
+		dialog = &DialogData{
+			data:     make(map[string]any),
+			cacheMd5: "",
+			mu:       sync.RWMutex{},
 		}
 	}
 
-	var value any
-	if data, ok := s.data[dialogID]; ok {
-		if val, ok := data.data[key]; ok {
-			value = val
-		}
-	}
-
-	resp := HttpInstruction{
-		EventType: types.EventSpecialInstruction,
-		Action:    "get_tool_memory",
-		Key:       key,
-		Value:     value,
-		DialogID:  dialogID,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(resp)
+	s.mu.RLock()
+	s.data[dialogID] = dialog
+	s.mu.RUnlock()
+	return dialog
 }
 
 func (s *StorageManager) persistDialogData(dialogID string) error {
-	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
-	s.data[dialogID].mu.Lock()
-	data, err := json.MarshalIndent(s.data[dialogID].data, "", "  ")
-	s.data[dialogID].mu.Unlock()
+	dialog := s.data[dialogID] // This is safe because periodicPersist holds the lock on s.mu
+
+	dialog.mu.Lock()
+	defer dialog.mu.Unlock()
+
+	data, err := json.MarshalIndent(dialog.data, "", "  ")
 	if err != nil {
 		return err
 	}
+
 	hash := md5.Sum(data)
 	currentMd5 := hex.EncodeToString(hash[:])
-	if currentMd5 == s.data[dialogID].cacheMd5 {
+	if currentMd5 == dialog.cacheMd5 {
 		logger.Debug("无需保存")
 		return nil
 	}
-	return os.WriteFile(filePath, data, 0644)
+
+	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
+	err = os.WriteFile(filePath, data, 0644)
+	if err == nil {
+		dialog.cacheMd5 = currentMd5
+	}
+	return err
 }
 
-func (s *StorageManager) loadDialogData(dialogID string) error {
+func (s *StorageManager) loadDialogDataFromFile(dialogID string) (*DialogData, error) {
 	filePath := filepath.Join(s.DataDirPath, fmt.Sprintf("%s.json", dialogID))
 	data, err := os.ReadFile(filePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	var dialogData map[string]any
 	if err := json.Unmarshal(data, &dialogData); err != nil {
-		return err
+		return nil, err
 	}
 	hash := md5.Sum(data)
 	currentMd5 := hex.EncodeToString(hash[:])
@@ -189,8 +183,5 @@ func (s *StorageManager) loadDialogData(dialogID string) error {
 		mu:       sync.RWMutex{},
 	}
 
-	s.mu.Lock()
-	s.data[dialogID] = dialog
-	s.mu.Unlock()
-	return nil
+	return dialog, nil
 }

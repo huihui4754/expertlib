@@ -69,7 +69,7 @@ func NewExpert() *Expert {
 		userMessageInChan:    make(chan *TotalMessage, 1000),
 		programMessageInChan: make(chan *TotalMessage, 1000),
 		chatMessageInChan:    make(chan *TotalMessage, 1000),
-		saveInterval:         10 * time.Minute,
+		saveInterval:         1 * time.Minute,
 		dialogs:              make(map[string]*DialogInfo),
 		dialogsMutex:         &sync.RWMutex{},
 		chatSaveHistoryLimit: 20,
@@ -432,7 +432,6 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 			UserID:      message.UserId,
 			DialogID:    message.DialogID,
 			Program:     "",
-			RWMutex:     &sync.RWMutex{},
 			ChatHistory: make([]string, 0),
 		}
 		t.dialogsMutex.Lock()
@@ -466,13 +465,13 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 		// }
 
 		if dialogx.Program == "" { // 还没有分配到程序库
-			logger.Debug("为其寻找合适的专家")
+			logger.Debug("为其寻找合适的程序库")
 			var possibleIntentions []PossibleIntentions
 			bestProgram, possibleIntentions := t.intentMatch.FindBestIntent(message.Messages.Content, message.Messages.Attachments, !dialogx.Mutil)
 
 			var gotoMutil bool // 是否要走多轮对话
 			if dialogx.Mutil { // 如果在多轮中
-				if bestProgram != "" && t.commandFirst { // 找到合适的专家并且是命令优先就去走程序库
+				if bestProgram != "" && t.commandFirst { // 找到合适的程序库并且是命令优先就去走程序库
 					gotoMutil = false
 					dialogx.Program = bestProgram
 				} else { // 否则给多轮对话
@@ -546,7 +545,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 				if err != nil {
 					logger.Error("Failed to marshal client message: %v", err)
 				}
-				logger.Debug("分配到专家:", dialogx.Program)
+				logger.Debug("分配到程序库:", dialogx.Program)
 				t.programMessageHandler(toProgramMessage, string(msg))
 				return
 			}
@@ -576,7 +575,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 			if err != nil {
 				logger.Error("Failed to marshal client message: %v", err)
 			}
-			logger.Debug("分配到专家:", dialogx.Program)
+			logger.Debug("分配到程序库:", dialogx.Program)
 			t.programMessageHandler(toProgramMessage, string(msg))
 			return
 		}
