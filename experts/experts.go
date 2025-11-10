@@ -132,12 +132,12 @@ func (t *Expert) SetSaveIntervalTime(interval time.Duration) {
 
 // 内部使用，获取默认保存dialog信息的路径
 func (t *Expert) defaultDialogPath() string {
-	return filepath.Join(t.dataFilePath, "user", "dailoginfo.json")
+	return filepath.Join(t.dataFilePath, "dailoginfo.json")
 }
 
 // 内部使用，获取默认保存意图匹配缓存的路径
 func (t *Expert) defaultIntentMatchCachePath() string {
-	return filepath.Join(t.dataFilePath, "user", "intentMatchCache.json")
+	return filepath.Join(t.dataFilePath, "intentMatchCache.json")
 }
 
 // 设置保存dialog信息的处理函数，可以自定义保存逻辑，不会保存到默认文件路径，设置后会定时触发保存
