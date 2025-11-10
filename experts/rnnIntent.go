@@ -37,6 +37,7 @@ func (r *RNNIntentManager) SetRNNModelPath(path string) {
 
 // LoadPersistedRemoteIntents 扫描rnnModelPath目录，加载意图识别
 func (r *RNNIntentManager) LoadRNNModelIntents() {
+	r.InitializeONNX()
 	logger.Info("Scanning for persisted remote intents...")
 	files, err := os.ReadDir(r.rnnModelPath)
 	if err != nil {
