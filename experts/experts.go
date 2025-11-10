@@ -607,7 +607,7 @@ func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 	dialogx.RWMutex.Lock()
 	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
-	case 2001: // 客户端发送消息
+	case types.EventServerMessage: // 客户端发送消息
 
 		logger.Infof("【回复用户】:%s", message.Messages.Content)
 		dialogx.ChatHistory = append(dialogx.ChatHistory, "Progarm: "+message.Messages.Content)
@@ -623,7 +623,7 @@ func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 		}
 		t.userMessageHandler(toUserMessage, string(msg))
 
-	case 2002: // 客户端终止对话
+	case types.EventToolFinish: // 客户端终止对话
 		toUserMessage := *message
 		msg, err := json.Marshal(toUserMessage)
 		if err != nil {
@@ -632,10 +632,18 @@ func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 		t.userMessageHandler(toUserMessage, string(msg))
 		dialogx.Program = ""
 
-	case 2003: // 专家不支持该能力需要重新分配一个专家
+	case types.EventToolNotSupport: // 专家不支持该能力需要重新分配一个专家
 		dialogx.Program = ""
 		t.handleFromUserMessage(message)
 
+	case types.EventToolNotFound:
+		toUserMessage := *message
+		msg, err := json.Marshal(toUserMessage)
+		if err != nil {
+			logger.Error("Failed to marshal chat message: %v", err)
+		}
+		t.userMessageHandler(toUserMessage, string(msg))
+		dialogx.Program = ""
 	default:
 		logger.Debugf("收到未知事件类型: %d", message.EventType)
 	}

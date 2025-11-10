@@ -125,6 +125,7 @@ func main() {
 	expertx.SetONNXLibPath("/home/zhangsh/test/libonnxruntime.so.1.22.0")
 
 	expertx.Register(NewCheckAutoStatus, "checkAutoStatus")
+	expertx.SetCommandFirst(true)
 
 	expertx.SetMessageFormatFunc(func(s string) string {
 

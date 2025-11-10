@@ -221,7 +221,7 @@ func (s *Session) handleConnection(conn net.Conn) {
 		switch totalMsg.EventType {
 		case types.EventServerMessage:
 			s.manager.toExpertMessageOutChan <- &totalMsg
-		case types.EventToolFinish, types.EventToolNotSupport:
+		case types.EventToolFinish, types.EventToolNotFound, types.EventToolNotSupport:
 			s.manager.toExpertMessageOutChan <- &totalMsg
 			s.manager.CloseSession(s.DialogID, totalMsg.EventType)
 			return

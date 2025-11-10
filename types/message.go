@@ -6,6 +6,7 @@ const (
 	EventServerMessage      = 2001
 	EventToolFinish         = 2002
 	EventToolNotSupport     = 2003
+	EventToolNotFound       = 2004
 	EventSpecialInstruction = 3000
 )
 

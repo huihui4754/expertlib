@@ -142,8 +142,8 @@ func (p *program) handleFromExpertMessage(message *TotalMessage) {
 		session, err := p.sessionManager.GetOrCreateSession(message.DialogID, message.UserId, message.Intention, p.port)
 		if err != nil {
 			logger.Errorf("Failed to get or create session for dialog %s: %v", message.DialogID, err)
-			// 向专家发回ToolNotSupport消息
-			p.sendToolNotSupported(message)
+			// 向专家发回ToolNotSupport消息 ,专家给的意图本地js程序中不存在
+			p.sendToolNotFound(message)
 			return
 		}
 		if err := session.Send(message); err != nil {
@@ -163,10 +163,10 @@ func (p *program) handleFromExpertMessage(message *TotalMessage) {
 
 }
 
-func (p *program) sendToolNotSupported(originalMsg *TotalMessage) {
-	// Create a ToolNotSupport message and send it back
+func (p *program) sendToolNotFound(originalMsg *TotalMessage) {
+	// Create a EventToolNotFound message and send it back
 	notSupportMsg := &TotalMessage{
-		EventType: types.EventToolNotSupport,
+		EventType: types.EventToolNotFound,
 		DialogID:  originalMsg.DialogID,
 		UserId:    originalMsg.UserId,
 	}
