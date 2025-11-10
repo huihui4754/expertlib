@@ -7,6 +7,7 @@ import (
 	"os"
 	"sync"
 	"time"
+	"sort"
 
 	"github.com/huihui4754/expertlib/types"
 )
@@ -193,7 +194,17 @@ func (i *IntentMatchManager) FindBestIntent(relacontent string, attachments []At
 			maxScore = res.Probability
 			bestIntent = res.IntentName
 		}
-		possibleIntentions = append(possibleIntentions, res) // 这里可以只放三个最高概率的意图
+		possibleIntentions = append(possibleIntentions, res)
+	}
+
+	// Sort possibleIntentions by Probability in descending order
+	sort.Slice(possibleIntentions, func(k, j int) bool {
+		return possibleIntentions[k].Probability > possibleIntentions[j].Probability
+	})
+
+	// Keep only the top 3 possible intentions
+	if len(possibleIntentions) > 3 {
+		possibleIntentions = possibleIntentions[:3]
 	}
 
 	logger.Debugf("较高意图概率： %v", possibleIntentions)

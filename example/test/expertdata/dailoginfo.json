@@ -1,0 +1,31 @@
+{
+  "f6d79543-b2b5-4a3d-8f23-c0c93c917548": {
+    "user_id": "user-123456789",
+    "dialog_id": "f6d79543-b2b5-4a3d-8f23-c0c93c917548",
+    "program": "",
+    "Mutil": false,
+    "FirstMutil": false,
+    "chat_history": [
+      "User: 帮我查看自动构建的状态 https://git.ipanel.cn/git/playcube/playcube.release.git  alpha-v1.0",
+      "Progarm: 马上帮你查询，请稍候",
+      "Progarm: 查询 https://git.ipanel.cn/git/playcube/playcube.release.git 的 alpha-v1.0 成功:\n- Auto名称: 9f2ff51_buildee\n- Buildee名称: 192.168.18.113:18100\n- Auto启动时间: 2025-10-09 15:36:38\n- 健康状况: 健康\n- 健康持续时长: 19时44分24秒\n- 健康开始时间: 2025-11-09 19:08:09",
+      "User: 帮我查看自动构建的状态 https://git.ipanel.cn/git/playcube/playcube.release.git  dev-1.0",
+      "Progarm: 请提供发布tag，例如: develop-v1.0",
+      "User: 帮我查看自动构建的状态 https://git.ipanel.cn/git/playcube/playcube.release.git  dev-1.0 ",
+      "Progarm: 请提供发布tag，例如: develop-v1.0",
+      "User: 帮我查看自动构建的状态 https://git.ipanel.cn/git/playcube/playcube.release.git  tag 为 dev-1.0",
+      "Progarm: 请提供发布tag，例如: develop-v1.0",
+      "User: 帮我查看自动构建的状态 https://git.ipanel.cn/git/playcube/playcube.release.git  tag 为 dev-1.0",
+      "Progarm: 请提供发布tag，例如: develop-v1.0",
+      "User: 帮我查看自动构建的状态 https://git.ipanel.cn/git/playcube/playcube.release.git  tag 为 dev-v1.0",
+      "Progarm: 马上帮你查询，请稍候",
+      "Progarm: 查询 https://git.ipanel.cn/git/playcube/playcube.release.git dev-v1.0 的自动构建状态完成: 编译任务不在线,无法获取健康状态信息.",
+      "User: 帮我查看上次的自动构建的状态",
+      "Progarm: 请确认发布仓地址和tag是否正确：\nhttps://git.ipanel.cn/git/playcube/playcube.release.git\ndev-v1.0\n请回复\"是\"或\"确认\"继续，或直接输入新的地址和tag进行修改",
+      "User: 是",
+      "Progarm: 马上帮你查询，请稍候",
+      "Progarm: 查询 https://git.ipanel.cn/git/playcube/playcube.release.git dev-v1.0 的自动构建状态完成: 编译任务不在线,无法获取健康状态信息.",
+      "User: 帮我启动自动构建"
+    ]
+  }
+}

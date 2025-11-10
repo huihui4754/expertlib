@@ -1,0 +1,13 @@
+{
+  "dialog_id": "f6d79543-b2b5-4a3d-8f23-c0c93c917548",
+  "messages": [
+    {
+      "content": "我想启动自动构建aaa",
+      "role": "user"
+    },
+    {
+      "content": "{\"intent\":\"triggerbuild\",\"demand\":\"启动自动构建，构建名称为aaa\"}",
+      "role": "assistant"
+    }
+  ]
+}

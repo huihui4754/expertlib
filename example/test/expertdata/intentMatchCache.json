@@ -1,0 +1,8 @@
+{
+  "帮我启动自动构建": "controlAutoBuild",
+  "帮我查看上次的自动构建的状态": "checkAutoStatus",
+  "帮我查看自动构建的状态": "checkAutoStatus",
+  "帮我查看自动构建的状态   dev-1.0": "checkAutoStatus",
+  "帮我查看自动构建的状态 发布仓地址为  tag 为": "checkAutoStatus",
+  "帮我查看自动构建的状态 发布仓地址为 https://git.ipanel.cn/git/playcube/playcube.release.git tag 为  alpha-v1.0": "checkAutoStatus"
+}
