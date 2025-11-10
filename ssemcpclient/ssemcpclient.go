@@ -579,14 +579,14 @@ func (h *SSEFuncCall) CallTool(call *FunctionCall) (string, error) {
 
 }
 
-func NewSSEFuncCall(ctx context.Context, sseURL string, appid string, userkey string) (*SSEFuncCall, error) {
+func NewSSEFuncCall(ctx context.Context, sseURL string) (*SSEFuncCall, error) {
 	var sseClient atomic.Pointer[MCPSSEClient]
 	usercall := &SSEFuncCall{
 		MCPSSEClient:     &sseClient,
 		OriginalMcpTools: make([]ModelContextFunctionTool, 0),
 		LLMCallableTools: make([]LLMCallableTool, 0),
 	}
-	// sseURL := fmt.Sprintf("%s?key=%s&appid=%s", os.Getenv("MCP_SSE_URL"), userkey, appid)
+
 	RunRoutine(ctx, sseURL, &sseClient, usercall.SSEInitHandler)
 	err := usercall.UpdateTools()
 	return usercall, err

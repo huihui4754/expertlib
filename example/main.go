@@ -1,12 +1,14 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"regexp"
 	"strings"
 	"time"
 
 	"github.com/gorilla/websocket"
+	"github.com/openai/openai-go/v3"
 
 	"github.com/huihui4754/expertlib/chat"
 	"github.com/huihui4754/expertlib/experts"
@@ -111,6 +113,10 @@ func NewCheckAutoStatus() experts.IntentMatchInter {
 	return &CheckAutoStatus{}
 }
 
+func getSumTool(a, b int) int {
+	return a + b
+}
+
 func main() {
 	// 获取程序库实例
 	expertx := experts.NewExpert()
@@ -152,10 +158,45 @@ func main() {
 
 	chatx := chat.NewChat()
 	chatx.SetDataFilePath("/home/zhangsh/test/chatdata") // 设置数据卷路径
-	chatx.SetLLMUrl("http://192.168.101.130:8011/v1")    // 设置大模型链接路径
-	chatx.SetModelName("Qwen3-8B-AWQ")                   // 设置大模型链接路径
-	chatx.SetSystemPrompt("你能够处理自动构建相关的问题")              // 设置多轮对话个性能力提示词
-	chatx.SetSaveIntervalTime(time.Minute)
+	chatx.SetLLMUrl("http://192.168.101.130:8010/v1")    // 设置大模型链接路径
+	chatx.SetModelName("Qwen3-32B-AWQ")                  // 设置大模型链接路径
+	chatx.SetSystemPrompt("你是一个有用的ai 助手")                // 设置多轮对话个性能力提示词
+	chatx.SetSaveIntervalTime(1 * time.Minute)
+
+	chatx.SetOpenaiChatCompletionToolUnionParam([]openai.ChatCompletionToolUnionParam{
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "add_sum",
+			Description: openai.String("计算两个数的相加 "),
+			Parameters: openai.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"a": map[string]string{
+						"type": "number",
+					},
+					"b": map[string]string{
+						"type": "number",
+					},
+				},
+				"required": []string{"a", "b"},
+			},
+		}),
+	})
+
+	chatx.SetCallFunctionHandler(func(call *chat.FunctionCall) (string, error) {
+		var err error
+		var result = ""
+		switch call.Name {
+		case "get_weather":
+			a := call.Arguments["a"].(int)
+			b := call.Arguments["b"].(int)
+			sum := getSumTool(a, b)
+			result = fmt.Sprintf("两数相加的结果为 %v", sum)
+		default:
+			err = fmt.Errorf("no support function  tool : %s", call.Name)
+		}
+		return result, err
+	})
+
 	chatx.SetToExpertMessageHandler(func(_ types.TotalMessage, message string) {
 		expertx.HandleChatRequestMessage(message)
 	})
