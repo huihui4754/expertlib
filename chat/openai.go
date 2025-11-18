@@ -54,78 +54,81 @@ func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolU
 	l.Messages = append(l.Messages, openai.UserMessage(question))
 	l.deleteOldMessage()
 
+	// 使用用户的个性化提示词和function call 进行第一次请求
 	messageWithOutExpertSystem := make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2)
 	messageWithOutExpertSystem = append(messageWithOutExpertSystem, openai.SystemMessage(l.SystemPrompt))
 	// messageWithOutExpertSystem = append(messageWithOutExpertSystem, l.Messages...)
 	messageWithOutExpertSystem = append(messageWithOutExpertSystem, openai.UserMessage(question))
 
-	paramsWithoutExpertSystem := openai.ChatCompletionNewParams{
-		Messages: messageWithOutExpertSystem,
-		Tools:    tools,
-		// Seed:     openai.Int(0),
-		Model: l.AIModel,
-	}
-
-	completion1, err := openaiClient.Chat.Completions.New(ctx, paramsWithoutExpertSystem)
-	if err != nil {
-		logger.Errorf("chat with openaiClient err: %v", err)
-		return "请求大模型失败", err
-	}
-
-	paramsWithoutExpertSystemData, err := json.Marshal(paramsWithoutExpertSystem)
-	if err == nil {
-		logger.Debugf("使用用户的个性提示词并检查是否要用 function call: %v", string(paramsWithoutExpertSystemData))
-	}
-
-	data1, err := json.Marshal(completion1)
-	if err == nil {
-		logger.Debugf("completion 1: %v", string(data1))
-	}
-
-	toolCalls1 := completion1.Choices[0].Message.ToolCalls
-
-	logger.Debugf("toolCalls1 len : %v", len(toolCalls1))
-
+	// 使用专家的系统提示词进行第二次请求
 	messageWithExpertSystem := make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2)
 	messageWithExpertSystem = append(messageWithExpertSystem, openai.SystemMessage(l.ExpertChatSystemPrompt))
 	messageWithExpertSystem = append(messageWithExpertSystem, l.Messages...)
 
-	if len(toolCalls1) == 0 {
-		logger.Debug("no need call tool ")
-	} else {
-		paramsWithoutExpertSystem.Messages = append(paramsWithoutExpertSystem.Messages, completion1.Choices[0].Message.ToParam())
-		for _, toolCall := range toolCalls1 {
-			var args map[string]interface{}
-			err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
-			if err != nil {
-				logger.Errorf("get tool arguments err: %v", err)
-				continue
-			}
-			if l.callFuctionCall != nil {
-				result, err := l.callFuctionCall(&FunctionCall{
-					Name:      toolCall.Function.Name,
-					Arguments: args,
-				})
-				if err != nil {
-					logger.Errorf("call tool err: %v", err)
-					continue
-				}
-				paramsWithoutExpertSystem.Messages = append(paramsWithoutExpertSystem.Messages, openai.ToolMessage(result, toolCall.ID))
-			}
+	if len(tools) != 0 && l.callFuctionCall != nil {
+		paramsWithoutExpertSystem := openai.ChatCompletionNewParams{
+			Messages: messageWithOutExpertSystem,
+			Tools:    tools,
+			// Seed:     openai.Int(0),
+			Model: l.AIModel,
 		}
 
-		completion2, err := openaiClient.Chat.Completions.New(ctx, paramsWithoutExpertSystem)
+		completion1, err := openaiClient.Chat.Completions.New(ctx, paramsWithoutExpertSystem)
 		if err != nil {
 			logger.Errorf("chat with openaiClient err: %v", err)
 			return "请求大模型失败", err
 		}
-		logger.Debugf("工具初步调用结果 ： %v", completion2.Choices[0].Message.Content)
-		messageWithExpertSystem = append(messageWithExpertSystem, openai.AssistantMessage(completion2.Choices[0].Message.Content))
-		// l.Messages = append(l.Messages, openai.AssistantMessage(completion2.Choices[0].Message.Content))
 
+		paramsWithoutExpertSystemData, err := json.Marshal(paramsWithoutExpertSystem)
+		if err == nil {
+			logger.Debugf("使用用户的个性提示词并检查是否要用 function call: %v", string(paramsWithoutExpertSystemData))
+		}
+
+		data1, err := json.Marshal(completion1)
+		if err == nil {
+			logger.Debugf("completion 1: %v", string(data1))
+		}
+
+		toolCalls1 := completion1.Choices[0].Message.ToolCalls
+
+		logger.Debugf("toolCalls1 len : %v", len(toolCalls1))
+
+		if len(toolCalls1) == 0 {
+			logger.Debug("no need call tool ")
+		} else {
+			paramsWithoutExpertSystem.Messages = append(paramsWithoutExpertSystem.Messages, completion1.Choices[0].Message.ToParam())
+			for _, toolCall := range toolCalls1 {
+				var args map[string]interface{}
+				err := json.Unmarshal([]byte(toolCall.Function.Arguments), &args)
+				if err != nil {
+					logger.Errorf("get tool arguments err: %v", err)
+					continue
+				}
+				if l.callFuctionCall != nil {
+					result, err := l.callFuctionCall(&FunctionCall{
+						Name:      toolCall.Function.Name,
+						Arguments: args,
+					})
+					if err != nil {
+						logger.Errorf("call tool err: %v", err)
+						continue
+					}
+					paramsWithoutExpertSystem.Messages = append(paramsWithoutExpertSystem.Messages, openai.ToolMessage(result, toolCall.ID))
+				}
+			}
+
+			completion2, err := openaiClient.Chat.Completions.New(ctx, paramsWithoutExpertSystem)
+			if err != nil {
+				logger.Errorf("chat with openaiClient err: %v", err)
+				return "请求大模型失败", err
+			}
+			logger.Debugf("工具初步调用结果 ： %v", completion2.Choices[0].Message.Content)
+			messageWithExpertSystem = append(messageWithExpertSystem, openai.AssistantMessage(completion2.Choices[0].Message.Content))
+			// l.Messages = append(l.Messages, openai.AssistantMessage(completion2.Choices[0].Message.Content))
+		}
 	}
 
-	logger.Debugf("tool len : %v", len(tools))
+	// logger.Debugf("tool len : %v", len(tools))
 
 	params := openai.ChatCompletionNewParams{
 		Messages: messageWithExpertSystem,
