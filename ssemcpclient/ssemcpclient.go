@@ -523,6 +523,10 @@ func ConvertViaJSON(src, dst any) error {
 
 }
 
+func (h *SSEFuncCall) GetOriginalMcpTools() []ModelContextFunctionTool {
+	return h.OriginalMcpTools
+}
+
 func (h *SSEFuncCall) GetTools() []LLMCallableTool {
 	return h.LLMCallableTools
 }

@@ -56,7 +56,8 @@ func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolU
 
 	messageWithOutExpertSystem := make([]openai.ChatCompletionMessageParamUnion, 0, messagesLenLimit+2)
 	messageWithOutExpertSystem = append(messageWithOutExpertSystem, openai.SystemMessage(l.SystemPrompt))
-	messageWithOutExpertSystem = append(messageWithOutExpertSystem, l.Messages...)
+	// messageWithOutExpertSystem = append(messageWithOutExpertSystem, l.Messages...)
+	messageWithOutExpertSystem = append(messageWithOutExpertSystem, openai.UserMessage(question))
 
 	paramsWithoutExpertSystem := openai.ChatCompletionNewParams{
 		Messages: messageWithOutExpertSystem,
