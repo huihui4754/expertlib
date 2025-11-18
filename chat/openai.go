@@ -73,7 +73,7 @@ func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolU
 
 	paramsWithoutExpertSystemData, err := json.Marshal(paramsWithoutExpertSystem)
 	if err == nil {
-		logger.Debugf("paramsWithoutExpertSystemData 1: %v", string(paramsWithoutExpertSystemData))
+		logger.Debugf("使用用户的个性提示词并检查是否要用 function call: %v", string(paramsWithoutExpertSystemData))
 	}
 
 	data1, err := json.Marshal(completion1)
@@ -128,7 +128,7 @@ func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolU
 
 	params := openai.ChatCompletionNewParams{
 		Messages: messageWithExpertSystem,
-		Tools:    tools,
+		// Tools:    tools,
 		// Seed:     openai.Int(0),
 		Model: l.AIModel,
 	}

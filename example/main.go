@@ -117,6 +117,12 @@ func getSumTool(a, b int) int {
 	return a + b
 }
 
+func getAirTemperatureTool(location string) string {
+	// 模拟获取空气温度的逻辑
+	// 在实际应用中，这里可以调用天气API来获取实时数据
+	return fmt.Sprintf("当前%s的空气温度是25摄氏度", location)
+}
+
 func main() {
 	// 获取程序库实例
 	expertx := experts.NewExpert()
@@ -181,17 +187,33 @@ func main() {
 				"required": []string{"a", "b"},
 			},
 		}),
+		openai.ChatCompletionFunctionTool(openai.FunctionDefinitionParam{
+			Name:        "get_air_temperature",
+			Description: openai.String("获取指定城市的当前空气温度，单位摄氏度"),
+			Parameters: openai.FunctionParameters{
+				"type": "object",
+				"properties": map[string]any{
+					"location": map[string]string{
+						"type": "string",
+					},
+				},
+				"required": []string{"location"},
+			},
+		}),
 	})
 
 	chatx.SetCallFunctionHandler(func(call *chat.FunctionCall) (string, error) {
 		var err error
 		var result = ""
 		switch call.Name {
-		case "get_weather":
+		case "add_sum":
 			a := call.Arguments["a"].(int)
 			b := call.Arguments["b"].(int)
 			sum := getSumTool(a, b)
 			result = fmt.Sprintf("两数相加的结果为 %v", sum)
+		case "get_air_temperature":
+			location := call.Arguments["location"].(string)
+			result = getAirTemperatureTool(location)
 		default:
 			err = fmt.Errorf("no support function  tool : %s", call.Name)
 		}
