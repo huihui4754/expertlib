@@ -216,6 +216,7 @@ func main() {
 		var err error
 		var result = ""
 		result, err = mcpclient.CallTool(call)
+		logger.Debugf("reslut :%v", result)
 		return result, err
 	})
 
