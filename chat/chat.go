@@ -172,6 +172,7 @@ func (c *Chat) Run() {
 				if err != nil {
 					logger.Error("Failed to marshal chat message: %v", err)
 				}
+				logger.Debugf("转发给专家： %v", string(msg))
 				c.expertMessageHandler(toExpertMessage, string(msg))
 			}()
 		}
@@ -185,9 +186,12 @@ func (c *Chat) handleFromExpertMessage(message *TotalMessage) {
 	case types.EventUserMessage:
 		logger.Debug("专家发送消息")
 		res := c.llmChatManager.ChatLLM(message)
+
 		if res != nil {
+			logger.Debugf("多轮对话回复给专家消息 ： %v", *res)
 			c.toExpertMessageOutChan <- res
 		}
+		logger.Errorf("多轮对话处理专家消息失败 ： %v", message)
 
 	case types.EventClientTerminate:
 		logger.Debug("专家终止对话")
