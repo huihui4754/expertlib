@@ -117,6 +117,7 @@ func (l *LLMChatWithFunCallManager) getLLMChatFormCache(dialogID string) *Openai
 				llm.AIURL = l.AIURL
 				llm.AIModel = l.AIModel
 				llm.SystemPrompt = l.SystemPrompt
+				llm.ExpertChatSystemPrompt = systemChatPrompt
 				llm.MessagesLenLimit = messagesLenLimit
 				if l.callFuncHandler != nil {
 					llm.SetCallFuncHandler(l.callFuncHandler)
