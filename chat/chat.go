@@ -3,6 +3,7 @@ package chat
 import (
 	"encoding/json"
 	"fmt"
+	"os"
 	"os/user"
 	"path/filepath"
 	"sync"
@@ -66,6 +67,10 @@ func NewChat() *Chat {
 func (c *Chat) SetDataFilePath(path string) {
 	c.dataFilePath = path
 	c.llmChatManager.DataPath = path
+	if err := os.MkdirAll(path, 0755); err != nil {
+		logger.Errorf("Failed to create chat data directory: %v", err)
+		panic("Failed to create chat data directory: " + path)
+	}
 	logger.Info("dataFilePath set to:", path)
 }
 

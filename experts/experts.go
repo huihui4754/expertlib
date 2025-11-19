@@ -103,6 +103,10 @@ func (t *Expert) UnRegister(intentName string) {
 // SetDataFilePath设置专家的数据文件路径。
 func (t *Expert) SetDataFilePath(path string) {
 	t.dataFilePath = path
+	if err := os.MkdirAll(path, 0755); err != nil {
+		logger.Errorf("Failed to create expert data directory: %v", err)
+		panic("Failed to create expert data directory: " + path)
+	}
 	logger.Info("Data file path set to:", path)
 }
 

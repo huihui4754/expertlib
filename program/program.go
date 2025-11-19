@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"os/user"
 	"path/filepath"
 	"time"
@@ -68,6 +69,10 @@ func NewTool() *program {
 func (p *program) SetDataFilePath(path string) {
 	p.dataFilePath = path
 	p.dataStorage.DataDirPath = path
+	if err := os.MkdirAll(path, 0755); err != nil {
+		logger.Errorf("Failed to create program data directory: %v", err)
+		panic("Failed to create program data directory: " + path)
+	}
 	logger.Info("Data file path set to:", path)
 	// Update storage manager with new path if it's already initialized
 }

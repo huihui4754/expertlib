@@ -159,11 +159,6 @@ func (l *LLMChatWithFunCallManager) SetCallFuncHandler(callHandler func(call *Fu
 
 func (l *LLMChatWithFunCallManager) saveAllDialogs() {
 
-	if err := os.MkdirAll(l.DataPath, 0755); err != nil {
-		logger.Errorf("Failed to create user data directory: %v", err)
-		return
-	}
-
 	for id, llm := range l.LLMChats {
 		l.llmsMutex.Lock()
 		data, err := json.MarshalIndent(*llm, "", "  ")
