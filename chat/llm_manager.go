@@ -220,6 +220,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 	}
 	llmRespone, err := llmChat.Chat(chatMessage, l.Tools)
 	if err != nil {
+		logger.Errorf("调用大模型接口 失败: %v", err)
 		return nil
 	}
 
@@ -261,7 +262,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 			return &replyMsg
 		}
 	}
-
+	logger.Errorf("LLMResponeMessage %v  解析失败: %v", llmRespone, err)
 	return nil
 
 }
