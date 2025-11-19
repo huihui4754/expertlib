@@ -245,6 +245,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 			}
 			return &replyMsg
 		} else {
+			logger.Debugf("多轮对话识别到意图 ： %v", jsonData.Intent)
 			replyMsg := TotalMessage{
 				EventType: types.EventUserMessage, // 返回给程序库的消息
 				DialogID:  message.DialogID,
@@ -260,6 +261,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 					Attachments: message.Messages.Attachments,
 				},
 			}
+			logger.Debugf("replyMsg ： %v", replyMsg)
 			return &replyMsg
 		}
 	}
