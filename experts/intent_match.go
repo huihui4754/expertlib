@@ -5,9 +5,9 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"os"
+	"sort"
 	"sync"
 	"time"
-	"sort"
 
 	"github.com/huihui4754/expertlib/types"
 )
@@ -202,7 +202,7 @@ func (i *IntentMatchManager) FindBestIntent(relacontent string, attachments []At
 		return possibleIntentions[k].Probability > possibleIntentions[j].Probability
 	})
 
-	// Keep only the top 3 possible intentions
+	// 只保留前三个可能的意图
 	if len(possibleIntentions) > 3 {
 		possibleIntentions = possibleIntentions[:3]
 	}
