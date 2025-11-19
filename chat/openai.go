@@ -147,13 +147,9 @@ func (l *OpenaiChatLLM) Chat(question string, tools []openai.ChatCompletionToolU
 		return "请求大模型失败", err
 	}
 
-	data, err = json.Marshal(completion)
-	if err == nil {
-		logger.Debugf("completion : %v", string(data))
-	}
-
 	l.Messages = append(l.Messages, openai.AssistantMessage(completion.Choices[0].Message.Content))
 	l.deleteOldMessage()
+	logger.Debugf("【多轮对话大模型返回结果】 : %v", completion.Choices[0].Message.Content)
 	return completion.Choices[0].Message.Content, nil
 }
 

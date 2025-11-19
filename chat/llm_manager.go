@@ -223,6 +223,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 		logger.Errorf("调用大模型接口 失败: %v", err)
 		return nil
 	}
+	logger.Debugf("LLMResponeMessage : %v", llmRespone)
 
 	var jsonData LLMResponeMessage
 	if err := json.Unmarshal([]byte(llmRespone), &jsonData); err == nil {
