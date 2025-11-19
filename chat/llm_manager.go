@@ -245,7 +245,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 			return &replyMsg
 		} else {
 			replyMsg := TotalMessage{
-				EventType: 1001, // 返回给程序库的消息
+				EventType: types.EventUserMessage, // 返回给程序库的消息
 				DialogID:  message.DialogID,
 				MessageID: message.MessageID,
 				UserId:    message.UserId,

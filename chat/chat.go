@@ -182,14 +182,14 @@ func (c *Chat) Run() {
 func (c *Chat) handleFromExpertMessage(message *TotalMessage) {
 
 	switch message.EventType {
-	case 1001:
+	case types.EventUserMessage:
 		logger.Debug("专家发送消息")
 		res := c.llmChatManager.ChatLLM(message)
 		if res != nil {
 			c.toExpertMessageOutChan <- res
 		}
 
-	case 1002:
+	case types.EventClientTerminate:
 		logger.Debug("专家终止对话")
 
 	default:

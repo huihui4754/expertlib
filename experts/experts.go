@@ -445,7 +445,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 	dialogx.RWMutex.Lock()
 	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
-	case 1001: // 客户端发送消息
+	case types.EventUserMessage: // 客户端发送消息
 
 		logger.Infof("【用户提问】:%s", message.Messages.Content)
 
@@ -497,7 +497,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 				dialogx.Mutil = true
 
 				// toChatMessage := ExpertToChatMessage{
-				// 	EventType:          1001,
+				// 	EventType:          types.EventUserMessage,
 				// 	DialogID:           message.DialogID,
 				// 	MessageID:          message.MessageID,
 				// 	UserId:             message.UserId,
@@ -528,7 +528,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 				dialogx.Mutil = false
 
 				// toProgramMessage := ExpertToProgramMessage{
-				// 	EventType: 1001,
+				// 	EventType: types.EventUserMessage,
 				// 	DialogID:  message.DialogID,
 				// 	MessageID: message.MessageID,
 				// 	UserId:    message.UserId,
@@ -558,7 +558,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 			logger.Debug("继续使用当前程序库:", dialogx.Program)
 
 			// toProgramMessage := ExpertToProgramMessage{
-			// 	EventType: 1001,
+			// 	EventType: types.EventUserMessage,
 			// 	DialogID:  message.DialogID,
 			// 	MessageID: message.MessageID,
 			// 	UserId:    message.UserId,
@@ -583,7 +583,7 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 			t.programMessageHandler(toProgramMessage, string(msg))
 			return
 		}
-	case 1002: // 客户端终止对话
+	case types.EventClientTerminate: // 客户端终止对话
 		if dialogx.Program == "" {
 			return
 		}
@@ -665,7 +665,7 @@ func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 	dialogx.RWMutex.Lock()
 	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
-	case 1001: // 多轮对话总结用户的需求，使用1001 代表用户返回请求专家
+	case types.EventUserMessage: // 多轮对话总结用户的需求，使用 types.EventUserMessage 代表用户返回请求专家
 		dialogx.Mutil = false
 		t.handleFromUserMessage(message)
 	case 2001: // 客户端发送消息
