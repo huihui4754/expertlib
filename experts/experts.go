@@ -668,7 +668,7 @@ func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 	case types.EventUserMessage: // 多轮对话总结用户的需求，使用 types.EventUserMessage 代表用户返回请求专家
 		dialogx.Mutil = false
 		t.handleFromUserMessage(message)
-	case 2001: // 客户端发送消息
+	case types.EventServerMessage: // 客户端发送消息
 
 		logger.Infof("【回复用户】:%s", message.Messages.Content)
 		dialogx.ChatHistory = append(dialogx.ChatHistory, "Chat: "+message.Messages.Content)

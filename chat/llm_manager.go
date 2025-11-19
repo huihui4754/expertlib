@@ -229,7 +229,7 @@ func (l *LLMChatWithFunCallManager) ChatLLM(message *TotalMessage) *TotalMessage
 		if jsonData.Intent == "" {
 
 			replyMsg := TotalMessage{
-				EventType: 2001, // 返回给用户的消息
+				EventType: types.EventServerMessage, // 返回给用户的消息
 				DialogID:  message.DialogID,
 				MessageID: uuid.New().String(),
 				UserId:    message.UserId,
