@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	SocketDir       = "/tmp/program_sockets"
+	SocketDir       = "/tmp"
 	IdleTimeout     = 2 * time.Hour
 	ProtocolMagic   = 0xDEADBEEF
 	ProtocolVersion = 1
