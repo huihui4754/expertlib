@@ -239,7 +239,7 @@ func (t *Expert) periodicSave() {
 
 // HandleUserRequestMessage 用户传给专家的消息由此进入，可以传入多种格式。
 func (t *Expert) HandleUserRequestMessage(message any) {
-	logger.Debug("HandleUserRequestMessage received:", message)
+	logger.Debugf("HandleUserRequestMessage received: %v", message)
 	var messagePointer *TotalMessage //todo 后面可以优化成启动前初始化很多个 TotalMessage 指针，避免频繁分配内存,需要根据并发量决定是否使用，低频环境可能现在更适用
 	var err error
 	switch v := message.(type) {
@@ -430,7 +430,11 @@ func (t *Expert) Run() {
 // type ExpertToProgramMessage = types.ExpertToProgramMessage
 
 func (t *Expert) handleFromUserMessage(message *TotalMessage) {
+
+	logger.Debug("收到用户消息:", *message)
+	t.dialogsMutex.Lock()
 	dialogx, exists := t.dialogs[message.DialogID]
+	t.dialogsMutex.Unlock()
 	if !exists {
 		dialogx = &DialogInfo{
 			UserID:      message.UserId,
@@ -603,8 +607,11 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 	logger.Debug("收到程序库消息:", *message)
 
+	t.dialogsMutex.Lock()
 	dialogx, exists := t.dialogs[message.DialogID]
+	t.dialogsMutex.Unlock()
 	if !exists {
+		logger.Error("DialogID not found for program message:", message.DialogID)
 		// 用户id 未记录，直接返回
 		return
 	}
@@ -657,9 +664,18 @@ func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 
 	logger.Debug("收到多轮对话:", *message)
 
+	t.dialogsMutex.Lock()
 	dialogx, exists := t.dialogs[message.DialogID]
+	t.dialogsMutex.Unlock()
+
+	if !exists {
+		logger.Error("DialogID not found for program message:", message.DialogID)
+		// 用户id 未记录，直接返回
+		return
+	}
 	if !exists {
 		// 用户id 未注册
+		logger.Error("DialogID not found for chat message:", message.DialogID)
 		return
 	}
 	dialogx.RWMutex.Lock()

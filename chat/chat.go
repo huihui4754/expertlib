@@ -191,7 +191,7 @@ func (c *Chat) handleFromExpertMessage(message *TotalMessage) {
 			logger.Debugf("多轮对话回复给专家消息 ： %v", *res)
 			c.toExpertMessageOutChan <- res
 		}
-		logger.Errorf("多轮对话处理专家消息失败 ： %v", message)
+		logger.Errorf("多轮对话处理专家消息结束 ： %v", message)
 
 	case types.EventClientTerminate:
 		logger.Debug("专家终止对话")
