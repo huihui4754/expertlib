@@ -16,6 +16,7 @@ import (
 var (
 	logger              = loglevel.NewLog(loglevel.Debug)
 	defalutSaveInterval = 10 * time.Minute
+	defalutPort         = "8765"
 )
 
 type TotalMessage = types.TotalMessage
@@ -39,7 +40,7 @@ type program struct {
 func NewTool() *program {
 	defalutProgramPath := ""
 	defalutDataPath := ""
-	defalutPort := "8765"
+
 	currentUser, err := user.Current() // todo 后续支持从配置文件读取配置
 	if err != nil {
 		fmt.Printf("获取用户信息失败：%v\n", err)
@@ -49,7 +50,7 @@ func NewTool() *program {
 	}
 
 	// Initialize storage with the data file path
-	dataStorage := NewStorage(defalutDataPath, defalutPort)
+	dataStorage := NewStorage(defalutDataPath)
 	dataStorage.SaveInterval = defalutSaveInterval
 
 	toExpertChan := make(chan *TotalMessage)
@@ -62,7 +63,6 @@ func NewTool() *program {
 		sessionManager:         NewSessionManager(toExpertChan),
 		dataStorage:            dataStorage,
 		saveInterval:           defalutSaveInterval,
-		port:                   defalutPort,
 	}
 }
 
@@ -87,6 +87,12 @@ func (p *program) SetProgramPath(path string) {
 	p.programPath = path
 	p.sessionManager.ProgramBasePath = path
 	logger.Info("Program path set to:", path)
+}
+
+func (p *program) SetStoragePort(port string) {
+	p.port = port
+	p.dataStorage.Port = port
+	logger.Info("Port set to:", port)
 }
 
 func (p *program) HandleExpertRequestMessage(message any) {
@@ -191,6 +197,11 @@ func (p *program) sendProgramEnd(originalMsg *TotalMessage) {
 func (p *program) Run() {
 
 	logger.Info("Program instance running")
+	if p.port == "" || p.dataStorage.Port == "" {
+		p.port = defalutPort
+		p.dataStorage.Port = defalutPort
+		logger.Warnf("Port is not set, using default port: %s", defalutPort)
+	}
 
 	for {
 		select {
@@ -225,5 +236,9 @@ func (p *program) GetStroageHandler() func(w http.ResponseWriter, r *http.Reques
 }
 
 func (p *program) RunStroageUserData() {
+	if p.dataStorage.Port == "" {
+		logger.Error(" dataStorage Port is not set")
+		panic("dataStorage Port is not set")
+	}
 	go p.dataStorage.RunHTTPServer() // Start the HTTP server for storage
 }

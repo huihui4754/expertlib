@@ -30,12 +30,11 @@ type StorageManager struct {
 	SaveInterval time.Duration
 }
 
-func NewStorage(dataDirPath string, port string) *StorageManager {
+func NewStorage(dataDirPath string) *StorageManager {
 	storage := &StorageManager{
 		data:         make(map[string]*DialogData),
 		DataDirPath:  dataDirPath,
 		mu:           sync.RWMutex{},
-		Port:         port,
 		SaveInterval: 10 * time.Minute,
 	}
 
