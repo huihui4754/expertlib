@@ -446,11 +446,11 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 		t.dialogs[message.DialogID] = dialogx
 		t.dialogsMutex.Unlock()
 	}
+
 	dialogx.RWMutex.Lock()
 	defer dialogx.RWMutex.Unlock()
 	switch message.EventType {
 	case types.EventUserMessage: // 客户端发送消息
-
 		logger.Infof("【用户提问】:%s", message.Messages.Content)
 
 		// 如果从程序库返回消息 2003 不支持，且原封不动返回给专家，则不加入历史记录，避免重复
@@ -465,12 +465,10 @@ func (t *Expert) handleFromUserMessage(message *TotalMessage) {
 			dialogx.ChatHistory = dialogx.ChatHistory[len(dialogx.ChatHistory)-t.chatSaveHistoryLimit:]
 		}
 
-		// if messageEvent.Intention != "" {
-		// 	userInfo.Expert = messageEvent.Intention
-		// 	if userInfo.FirstMutil {
-		// 		expert.CacheContentIntent(messageEvent.Messages.Content, messageEvent.Intention)
-		// 	}
-		// }
+		if message.Intention != "" {
+			logger.Debug("用户指定了意图或者多轮对话指明了意图，直接使用当前意图:", message.Intention)
+			dialogx.Program = message.Intention
+		}
 
 		if dialogx.Program == "" { // 还没有分配到程序库
 			logger.Debug("为其寻找合适的程序库")
@@ -645,7 +643,7 @@ func (t *Expert) handleFromProgramMessage(message *TotalMessage) {
 
 	case types.EventToolNotSupport: // 专家不支持该能力需要重新分配一个专家
 		dialogx.Program = ""
-		t.handleFromUserMessage(message)
+		t.userMessageInChan <- message
 
 	case types.EventToolNotFound:
 		toUserMessage := *message
@@ -683,7 +681,7 @@ func (t *Expert) handleFromChatMessage(message *TotalMessage) {
 	switch message.EventType {
 	case types.EventUserMessage: // 多轮对话总结用户的需求，使用 types.EventUserMessage 代表用户返回请求专家
 		dialogx.Mutil = false
-		t.handleFromUserMessage(message)
+		t.userMessageInChan <- message
 	case types.EventServerMessage: // 客户端发送消息
 
 		logger.Infof("【回复用户】:%s", message.Messages.Content)
