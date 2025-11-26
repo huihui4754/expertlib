@@ -108,7 +108,6 @@ func (w *CheckAutoStatus) Matching(content string, attachments []Attachment) flo
 
 	return 0
 }
-
 func NewCheckAutoStatus() experts.IntentMatchInter {
 	return &CheckAutoStatus{}
 }
